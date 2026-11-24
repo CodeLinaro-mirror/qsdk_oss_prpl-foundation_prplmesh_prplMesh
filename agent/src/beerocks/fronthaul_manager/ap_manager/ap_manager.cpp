@@ -22,6 +22,8 @@
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 
 #include "tlvf/wfa_map/tlvClientInfo.h"
+#include <tlvf/ieee_1905_1/tlvEndOfMessage.h>
+#include <tlvf/tlvftypes.h>
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
@@ -47,8 +49,10 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 #include <numeric>
 #include <type_traits>
+#include <utility>
 
 //////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Local Module Definitions //////////////////////////
@@ -2609,68 +2613,87 @@ void ApManager::beacon_metrics_response_cb(int fd)
         return;
     }
 
-    sBeaconMetricsResponse &response = *it;
-
-    auto cmdu_tx_header =
-        cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE);
-    if (!cmdu_tx_header) {
-        LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
-        m_beacon_metrics_response.erase(it);
-        return;
-    }
-
-    auto tlvBeaconMetricsResponse = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
-    if (!tlvBeaconMetricsResponse) {
-        LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
-        m_beacon_metrics_response.erase(it);
-        return;
-    }
-
-    tlvBeaconMetricsResponse->associated_sta_mac() = response.sta_mac;
-
-    for (const auto &report : response.beacon_report) {
-        auto beacon_report = tlvBeaconMetricsResponse->create_measurement_report_list();
-        if (!beacon_report) {
-            LOG(ERROR) << "Failed to create beacon report!";
-            m_beacon_metrics_response.erase(it);
-            return;
-        }
-
-        beacon_report->length()               = report.length;
-        beacon_report->measurement_token()    = report.params.measurement_token;
-        beacon_report->measurement_req_mode() = report.params.rep_mode;
-        beacon_report->op_class()             = report.params.op_class;
-        beacon_report->channel()              = report.params.channel;
-        beacon_report->start_time()           = report.params.start_time;
-        beacon_report->duration()             = report.params.duration;
-        beacon_report->phy_type()             = report.params.phy_type;
-        beacon_report->rcpi()                 = report.params.rcpi;
-        beacon_report->rsni()                 = report.params.rsni;
-        beacon_report->bssid()                = report.params.bssid;
-        beacon_report->antenna_id()           = report.params.ant_id;
-        beacon_report->parent_tsf()           = report.params.parent_tsf;
-
-        if (!tlvBeaconMetricsResponse->add_measurement_report_list(beacon_report)) {
-            LOG(ERROR) << "Failed to add beacon report!";
-            m_beacon_metrics_response.erase(it);
-            return;
-        }
-    }
-
-    if (response.beacon_report.size() == 0) {
-        LOG(DEBUG) << "No beacon report available to be sent for " << response.sta_mac;
-        /* EM spec mentions "reserved" but this seems to be a status code */
-        tlvBeaconMetricsResponse->reserved() =
-            wfa_map::cMeasurementReportElement::BEACON_REPORT_RESP_NO_REPORT;
-    } else {
-        LOG(DEBUG) << response.beacon_report.size() << " beacon report(s) available for "
-                   << response.sta_mac;
-    }
-
+    auto response = std::move(*it);
     m_beacon_metrics_response.erase(it);
 
-    LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE";
-    send_cmdu(cmdu_tx);
+    // Respond separately to each received report frame. Transport fragments only between
+    // TLVs, so split an unusually large frame's results into additional bounded responses.
+    auto send_reports = [this, &response](const std::vector<sBeaconReport> &reports) {
+        auto next_report       = reports.cbegin();
+        const auto report_size = wfa_map::cMeasurementReportElement::get_initial_size();
+        const auto max_size = tlvf::MAX_TLV_SIZE - ieee1905_1::tlvEndOfMessage::get_initial_size();
+        do {
+            if (!cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE)) {
+                LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
+                return false;
+            }
+
+            auto tlv = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
+            if (!tlv) {
+                LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
+                return false;
+            }
+            tlv->associated_sta_mac() = response.sta_mac;
+
+            while (next_report != reports.cend() && tlv->getLen() + report_size <= max_size &&
+                   tlv->measurement_report_list_length() < std::numeric_limits<uint8_t>::max()) {
+                auto report = tlv->create_measurement_report_list();
+                if (!report) {
+                    LOG(ERROR) << "Failed to create beacon measurement report";
+                    return false;
+                }
+
+                const auto &source             = *next_report;
+                report->length()               = source.length;
+                report->measurement_token()    = source.params.measurement_token;
+                report->measurement_req_mode() = source.params.rep_mode;
+                report->op_class()             = source.params.op_class;
+                report->channel()              = source.params.channel;
+                report->start_time()           = source.params.start_time;
+                report->duration()             = source.params.duration;
+                report->phy_type()             = source.params.phy_type;
+                report->rcpi()                 = source.params.rcpi;
+                report->rsni()                 = source.params.rsni;
+                report->bssid()                = source.params.bssid;
+                report->antenna_id()           = source.params.ant_id;
+                report->parent_tsf()           = source.params.parent_tsf;
+
+                if (!tlv->add_measurement_report_list(std::move(report))) {
+                    LOG(ERROR) << "Failed to add beacon measurement report";
+                    return false;
+                }
+                ++next_report;
+            }
+
+            if (tlv->measurement_report_list_length() == 0) {
+                if (next_report != reports.cend()) {
+                    LOG(ERROR) << "Beacon measurement report does not fit in a response";
+                    return false;
+                }
+                tlv->reserved() = wfa_map::cMeasurementReportElement::BEACON_REPORT_RESP_NO_REPORT;
+            }
+
+            LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE with "
+                       << unsigned(tlv->measurement_report_list_length()) << " of "
+                       << reports.size() << " report(s) from one frame for " << response.sta_mac;
+            if (!send_cmdu(cmdu_tx)) {
+                LOG(ERROR) << "Failed to send Beacon Metrics Response batch for "
+                           << response.sta_mac;
+                return false;
+            }
+        } while (next_report != reports.cend());
+        return true;
+    };
+
+    if (response.beacon_report_frames.empty()) {
+        send_reports({});
+        return;
+    }
+    for (const auto &reports : response.beacon_report_frames) {
+        if (!send_reports(reports)) {
+            return;
+        }
+    }
 }
 
 void ApManager::fill_cs_params(beerocks_message::sApChannelSwitch &params)
@@ -3319,7 +3342,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
                 return true;
             }
 
-            sBeaconMetricsResponse &response = *it;
+            std::vector<sBeaconReport> reports;
 
             size_t idx = 0;
 
@@ -3339,7 +3362,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
             /* Return true in case of an invalid management frame, no reason to terminate the AP Manager */
             while (idx < mgmt_frame->data.size()) {
-                sBeaconMetricsResponse::sBeaconReport beacon_report = {};
+                sBeaconReport beacon_report = {};
 
                 auto &params = beacon_report.params;
 
@@ -3397,7 +3420,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
                 params.struct_swap();
 
-                response.beacon_report.push_back(beacon_report);
+                reports.push_back(beacon_report);
 
                 /* Jump to the next beacon */
                 idx = idx + element_length - min_measurement_length;
@@ -3406,6 +3429,9 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
                            << ", bssid: " << params.bssid << ", channel: " << params.channel;
             }
 
+            if (!reports.empty()) {
+                it->beacon_report_frames.push_back(std::move(reports));
+            }
             return true;
         } else if (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST ||
                    mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST) {
