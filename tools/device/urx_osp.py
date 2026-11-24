@@ -49,10 +49,19 @@ class URXOSP(GenericPrplOS):
         # Give the ethernet interfaces some time to initialize:
         time.sleep(5)
 
+        # Check if the compatibility bootloader is used
+        shell.sendline("version")
+        shell.expect("prpl-compat OCTOPUS-URX641-EMMC-OPEN_BOOT", timeout=5)
+        shell.sendline("setenv prpl_legacy_boot off")
+        shell.expect(self.bootloader_prompt)
         shell.sendline(f"setenv serverip {self.serverip}")
         shell.expect(self.bootloader_prompt)
         shell.sendline(f"setenv ipaddr {self.ipaddr}")
         shell.expect(self.bootloader_prompt)
+        shell.sendline("saveenv")
+        shell.expect("OK", timeout=5)
+        shell.expect(self.bootloader_prompt)
+
         shell.sendline("setenv loadaddr 0x8200000")
         shell.expect(self.bootloader_prompt)
         time.sleep(5)
