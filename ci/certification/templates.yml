@@ -148,7 +148,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R4
-    - ospv2_new_layout
+    - ospv2-SMD-compat
 
 .certification:R4:urx_ospv2_on_boot_24:
   extends: .certification:R4:urx_ospv2

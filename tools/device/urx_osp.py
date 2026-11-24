@@ -46,22 +46,33 @@ class URXOSP(GenericPrplOS):
         # Give the ethernet interfaces some time to initialize:
         time.sleep(5)
 
+        # Check if the compatibility bootloader is used
+        shell.sendline("version")
+        shell.expect("prpl-compat OCTOPUS-URX641-EMMC-OPEN_BOOT", timeout=5)
+        shell.sendline("setenv prpl_legacy_boot on")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("saveenv")
+        shell.expect("OK", timeout=5)
+        shell.expect(self.bootloader_prompt)
+
         # Changes the default image name to upgrade
         if self.image:
             shell.sendline(f"env set fullimage {self.image}")
             shell.expect(self.bootloader_prompt)
 
-        shell.sendline("run update_fullimage")
-        shell.expect("done", timeout=30)
-        # Image transfer successful
-        shell.expect("OK", timeout=15)
-        shell.expect("upgrade succeed", timeout=15)
-        shell.expect("upgrade succeed", timeout=15)
+        shell.sendline("setenv loadaddr 0x8200000")
+        shell.expect(self.bootloader_prompt)
         time.sleep(5)
         # Image written to MMC
-        shell.sendline("")
+        shell.sendline("mmc dev 0")
         shell.expect(self.bootloader_prompt)
-        shell.sendline(
-            "mmc erase ${rootfs_data_block_start} ${rootfs_data_block_size}")
-        shell.expect("blocks erased: OK", timeout=15)
+        shell.sendline("mmc erase 0x86c00 0x10000")
+        shell.expect("blocks erased: OK")
         shell.expect(self.bootloader_prompt)
+
+        shell.sendline("run update_fullimage")
+        shell.expect("done", timeout=45)
+        # Image transfer successful
+        shell.expect("OK", timeout=15)
+        shell.expect("upgrade succeed", timeout=45)
+        shell.expect("upgrade succeed", timeout=45)
