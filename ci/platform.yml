@@ -182,14 +182,14 @@ cram-on-ospv2:
     - job: build-for-ospv2
   tags:
     - cram
-    - ospv2-SMD
+    - ospv2-SMD-compat
 
 .cram-WPS:
   extends: .cram-on-target
   tags:
     - cram
     - freedom-SMD
-    - ospv2-SMD
+    - ospv2-SMD-compat
 
 cram-WPS-OSPv2-Freedom:
   extends: .cram-WPS

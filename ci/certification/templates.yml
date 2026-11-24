@@ -50,7 +50,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R4
-    - ospv2-SMD
+    - ospv2-SMD-compat
 
 .certification:R4:mozart:
   stage: R4-cert-mozart
@@ -102,7 +102,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R6
-    - ospv2-SMD
+    - ospv2-SMD-compat
 
 .certification:R6:mozart:
   stage: R6-cert-mozart

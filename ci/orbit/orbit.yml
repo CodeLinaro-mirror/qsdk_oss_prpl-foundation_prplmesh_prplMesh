@@ -60,7 +60,7 @@
     - job: build-for-ospv2
   tags:
     - orbit
-    - ospv2
+    - ospv2-SMD-compat
 
 Orbit:OSPv2:5.1.4_connect_station_2g:
   extends: .orbit-on-ospv2
