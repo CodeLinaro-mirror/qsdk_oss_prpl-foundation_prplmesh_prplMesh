@@ -33,6 +33,17 @@ public:
                                                 const sMacAddr &radio_mac);
 
     /**
+     * @brief Adds a new AP Radio Advanced Capabilities TLV to given message.
+     *
+     * @param[in,out] cmdu_tx CDMU message.
+     * @param[in] radio Radio for which capabilities are reported.
+     *
+     * @return True on success and false otherwise.
+     */
+    static bool add_ap_radio_advanced_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                   const AgentDB::sRadio &radio);
+
+    /**
      * @brief Fill the Channel Scan Capabilities TLV
      * @param[out] cmdu_tx : CMDU message
      * @return True on success

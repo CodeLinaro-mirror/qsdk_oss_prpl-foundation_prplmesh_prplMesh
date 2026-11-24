@@ -5621,57 +5621,72 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
 bool Controller::handle_tlv_profile2_ap_radio_advanced_capabilities(
     Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    auto ap_radio_advanced_capabilities =
-        cmdu_rx.getClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
-    if (!ap_radio_advanced_capabilities) {
+    // One TLV per radio.
+    auto tlvs = cmdu_rx.getClassList<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+    if (tlvs.empty()) {
         LOG(DEBUG) << "getClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities has failed";
         return false;
     }
 
     LOG(DEBUG) << "Profile-2 AP Radio Advanced Capabilities TLV is received";
 
-    std::stringstream ss;
+    bool ret = true;
+    for (const auto &ap_radio_advanced_capabilities : tlvs) {
+        if (!ap_radio_advanced_capabilities) {
+            LOG(ERROR) << "Received null tlvProfile2ApRadioAdvancedCapabilities";
+            ret = false;
+            continue;
+        }
 
-    auto ruid = ap_radio_advanced_capabilities->radio_uid();
+        auto ruid = ap_radio_advanced_capabilities->radio_uid();
 
-    auto radio = agent.radios.get(ruid);
-    if (!radio) {
-        LOG(ERROR) << "No radio found for ruid=" << ruid << " on " << agent.al_mac;
-        return false;
+        auto radio = agent.radios.get(ruid);
+        if (!radio) {
+            LOG(ERROR) << "No radio found for ruid=" << ruid << " on " << agent.al_mac;
+            ret = false;
+            continue;
+        }
+
+        auto advanced_radio_capabilities =
+            ap_radio_advanced_capabilities->advanced_radio_capabilities();
+
+        radio->advanced_capabilities.traffic_separation_combined_fronthaul =
+            advanced_radio_capabilities.combined_front_back;
+        radio->advanced_capabilities.traffic_separation_combined_backhaul =
+            advanced_radio_capabilities.combined_profile1_and_profile2;
+        radio->advanced_capabilities.mscs = advanced_radio_capabilities.mscs;
+        radio->advanced_capabilities.scs  = advanced_radio_capabilities.scs;
+        radio->advanced_capabilities.dscp_to_up_mapping =
+            advanced_radio_capabilities.dscp_to_up_mapping;
+        radio->advanced_capabilities.dscp_policy = advanced_radio_capabilities.dscp_policy;
+        radio->advanced_capabilities.qm_scs_traffic_description =
+            advanced_radio_capabilities.qm_scs_traffic_description;
+
+        std::stringstream ss;
+        ss << "Radio " << ruid << ", traffic separation capabilities:" << std::endl
+           << "Traffic separation on combined fronthaul and Profile-1 backhaul support = "
+           << radio->advanced_capabilities.traffic_separation_combined_fronthaul << std::endl
+           << "Traffic separation on combined Profile-1 backhaul and Profile-2 backhaul support = "
+           << radio->advanced_capabilities.traffic_separation_combined_backhaul << std::endl
+           << "MSCS support = " << radio->advanced_capabilities.mscs << std::endl
+           << "SCS support = " << radio->advanced_capabilities.scs << std::endl
+           << "DSCP-to-UP mapping support = " << radio->advanced_capabilities.dscp_to_up_mapping
+           << std::endl
+           << "DSCP Policy support = " << radio->advanced_capabilities.dscp_policy << std::endl
+           << "QM SCS Traffic Description support = "
+           << radio->advanced_capabilities.qm_scs_traffic_description << std::endl;
+
+        if (!database.dm_set_radio_advanced_capabilities(*radio)) {
+            LOG(ERROR) << "Failed to set AP Radio Advanced Capabilities in DM for radio="
+                       << radio->radio_uid;
+            ret = false;
+            continue;
+        }
+
+        LOG(DEBUG) << ss.str();
     }
 
-    auto advanced_radio_capabilities =
-        ap_radio_advanced_capabilities->advanced_radio_capabilities();
-
-    radio->advanced_capabilities.traffic_separation_combined_fronthaul =
-        advanced_radio_capabilities.combined_front_back;
-    radio->advanced_capabilities.traffic_separation_combined_backhaul =
-        advanced_radio_capabilities.combined_profile1_and_profile2;
-    radio->advanced_capabilities.mscs = advanced_radio_capabilities.mscs;
-    radio->advanced_capabilities.scs  = advanced_radio_capabilities.scs;
-    radio->advanced_capabilities.dscp_to_up_mapping =
-        advanced_radio_capabilities.dscp_to_up_mapping;
-    radio->advanced_capabilities.dscp_policy = advanced_radio_capabilities.dscp_policy;
-
-    ss << "Radio " << ruid << ", traffic separation capabilities:" << std::endl
-       << "Traffic separation on combined fronthaul and Profile-1 backhaul support = "
-       << radio->advanced_capabilities.traffic_separation_combined_fronthaul << std::endl
-       << "Traffic separation on combined Profile-1 backhaul and Profile-2 backhaul support = "
-       << radio->advanced_capabilities.traffic_separation_combined_backhaul << std::endl
-       << "MSCS support = " << radio->advanced_capabilities.mscs << std::endl
-       << "SCS support = " << radio->advanced_capabilities.scs << std::endl
-       << "DSCP-to-UP mapping support = " << radio->advanced_capabilities.dscp_to_up_mapping
-       << std::endl
-       << "DSCP Policy support = " << radio->advanced_capabilities.dscp_policy << std::endl;
-
-    if (!database.dm_set_radio_advanced_capabilities(*radio)) {
-        LOG(ERROR) << "Failed to set AP Radio Advanced Capabilities in DM for radio="
-                   << radio->radio_uid;
-        return false;
-    }
-
-    LOG(DEBUG) << ss.str();
-    return true;
+    return ret;
 }
 
 bool Controller::handle_tlv_device_inventory(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx)

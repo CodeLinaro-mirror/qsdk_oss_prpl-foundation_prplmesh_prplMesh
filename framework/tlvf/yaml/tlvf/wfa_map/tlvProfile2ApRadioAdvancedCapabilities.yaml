@@ -33,5 +33,8 @@ sAdvancedRadioCapabilities:
   dscp_policy:
     _bit_range: [2,2]
     _comment: Support for sending DSCP Policy Requests to associated STAs, and EasyMesh configuration of such policies.
+  qm_scs_traffic_description:
+    _bit_range: [1,1]
+    _comment: Support for QoS Management SCS Traffic Description and EasyMesh configuration of and/or extensions to SCS using traffic descriptions.
   reserved:
-    _bit_range: [1,0]
+    _bit_range: [0,0]

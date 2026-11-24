@@ -15,6 +15,7 @@
 #include <tlvf/wfa_map/tlvApRadioBasicCapabilities.h>
 #include <tlvf/wfa_map/tlvChannelScanCapabilities.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
+#include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 
 using namespace beerocks;
@@ -216,6 +217,29 @@ bool tlvf_utils::add_ap_radio_basic_capabilities(ieee1905_1::CmduMessageTx &cmdu
             return false;
         }
     }
+
+    return true;
+}
+
+bool tlvf_utils::add_ap_radio_advanced_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                    const AgentDB::sRadio &radio)
+{
+    auto tlv = cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+    if (!tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
+        return false;
+    }
+
+    tlv->radio_uid() = radio.front.iface_mac;
+
+    auto &capabilities = tlv->advanced_radio_capabilities();
+    // Currently Set the flag as we don't support traffic separation.
+    capabilities.combined_front_back            = radio.front.hybrid_mode_supported;
+    capabilities.combined_profile1_and_profile2 = 0;
+    capabilities.mscs                           = radio.mscs_supported;
+    capabilities.scs                            = radio.scs_supported;
+    // pWHM passes SCS descriptors to the vendor as-is, traffic descriptions included.
+    capabilities.qm_scs_traffic_description = radio.scs_supported;
 
     return true;
 }

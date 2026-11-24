@@ -54,6 +54,7 @@ bool tlvProfile2ErrorCode::alloc_bssid() {
         std::copy_n(src, move_length, dst);
     }
     m_service_prioritization_rule_id = (uint32_t *)((uint8_t *)(m_service_prioritization_rule_id) + len);
+    m_qmid = (uint16_t *)((uint8_t *)(m_qmid) + len);
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
         return false;
@@ -96,6 +97,7 @@ bool tlvProfile2ErrorCode::alloc_service_prioritization_rule_id() {
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
+    m_qmid = (uint16_t *)((uint8_t *)(m_qmid) + len);
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
         return false;
@@ -122,6 +124,48 @@ bool tlvProfile2ErrorCode::set_service_prioritization_rule_id(const uint32_t ser
     return true;
 }
 
+bool tlvProfile2ErrorCode::alloc_qmid() {
+    if (m_qmid_allocated) {
+        LOG(ERROR) << "qmid already allocated!";
+        return false;
+    }
+    size_t len = sizeof(uint16_t);
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    uint8_t *src = (uint8_t *)m_qmid;
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    if(m_length){ (*m_length) += len; }
+    m_qmid_allocated = true;
+    return true;
+}
+
+uint16_t* tlvProfile2ErrorCode::qmid() {
+    if (!m_reason_code || !(*m_reason_code == eReasonCode::UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY)) {
+        TLVF_LOG(ERROR) << "qmid requested but condition not met: *m_reason_code == eReasonCode::UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY";
+        return nullptr;
+    }
+    return (uint16_t*)(m_qmid);
+}
+
+bool tlvProfile2ErrorCode::set_qmid(const uint16_t qmid) {
+    if (!m_qmid_allocated && !alloc_qmid()) {
+        LOG(ERROR) << "Could not allocate qmid!";
+        return false;
+    }
+    *m_qmid = qmid;
+    return true;
+}
+
 void tlvProfile2ErrorCode::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_length));
@@ -131,6 +175,9 @@ void tlvProfile2ErrorCode::class_swap()
     }
     if (*m_reason_code == eReasonCode::SERVICE_PRIORITIZATION_RULE_NOT_FOUND || *m_reason_code == eReasonCode::NUMBER_OF_SERVICE_PRIORITIZATION_RULES_EXCEEDED_THE_MAXIMUM_SUPPORTED) {
         tlvf_swap(32, reinterpret_cast<uint8_t*>(m_service_prioritization_rule_id));
+    }
+    if (*m_reason_code == eReasonCode::UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY) {
+        tlvf_swap(16, reinterpret_cast<uint8_t*>(m_qmid));
     }
 }
 
@@ -204,6 +251,11 @@ bool tlvProfile2ErrorCode::init()
     m_service_prioritization_rule_id = reinterpret_cast<uint32_t*>(m_buff_ptr__);
     if ((*m_reason_code == eReasonCode::SERVICE_PRIORITIZATION_RULE_NOT_FOUND || *m_reason_code == eReasonCode::NUMBER_OF_SERVICE_PRIORITIZATION_RULES_EXCEEDED_THE_MAXIMUM_SUPPORTED) && !buffPtrIncrementSafe(sizeof(uint32_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint32_t) << ") Failed!";
+        return false;
+    }
+    m_qmid = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if ((*m_reason_code == eReasonCode::UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY) && !buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

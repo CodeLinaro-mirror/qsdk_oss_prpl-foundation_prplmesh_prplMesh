@@ -2412,6 +2412,18 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 LOG(ERROR) << "handle_qos_management_descriptor failed for BSSID "
                            << descriptor_tlv->bssid() << ", client "
                            << descriptor_tlv->client_mac();
+
+                // Return the request MID so the agent can send the Error Response.
+                auto notification = message_com::create_vs_message<
+                    beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_FAILURE>(
+                    cmdu_tx, beerocks_header->id());
+                if (!notification) {
+                    LOG(ERROR) << "Failed building message!";
+                    return;
+                }
+                notification->bssid() = descriptor_tlv->bssid();
+                notification->qmid()  = descriptor_tlv->qmid();
+                send_cmdu(cmdu_tx);
                 return;
             }
         }

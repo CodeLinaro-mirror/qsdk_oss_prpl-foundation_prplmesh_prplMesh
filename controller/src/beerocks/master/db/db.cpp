@@ -9422,6 +9422,18 @@ bool db::dm_set_radio_advanced_capabilities(const Agent::sRadio &radio)
     ret_val &=
         m_ambiorix_datamodel->set(radio.dm_path, "TrafficSeparationCombinedBackhaul",
                                   radio.advanced_capabilities.traffic_separation_combined_backhaul);
+
+    std::string path_to_obj = radio.dm_path + ".Capabilities.";
+    ret_val &=
+        m_ambiorix_datamodel->set(path_to_obj, "MSCSCapability", radio.advanced_capabilities.mscs);
+    ret_val &=
+        m_ambiorix_datamodel->set(path_to_obj, "SCSCapability", radio.advanced_capabilities.scs);
+    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "QoSMapCapability",
+                                         radio.advanced_capabilities.dscp_to_up_mapping);
+    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "DSCPPolicyCapability",
+                                         radio.advanced_capabilities.dscp_policy);
+    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SCSTrafficDescriptionCapability",
+                                         radio.advanced_capabilities.qm_scs_traffic_description);
     return ret_val;
 }
 

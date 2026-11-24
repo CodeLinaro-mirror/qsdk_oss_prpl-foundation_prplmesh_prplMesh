@@ -418,6 +418,14 @@ cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST:
 cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST:
   _type: class
 
+cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_FAILURE:
+  _type: class
+  _comment: |
+    A QoS Management descriptor received from the controller could not be applied.
+    The beerocks header id carries the MID of the Service Prioritization Request.
+  bssid: sMacAddr
+  qmid: uint16_t
+
 cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST:
   _type: class
 

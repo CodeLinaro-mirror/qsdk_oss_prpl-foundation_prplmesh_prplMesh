@@ -2478,10 +2478,40 @@ bool ap_wlan_hal_whm::handle_qos_management_descriptor(
     auto qos_mgmt_path  = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
     auto descriptor_hex = beerocks::string_utils::bytes_to_hex_string(descriptor_element.data(),
                                                                       descriptor_element.size());
+    auto client_mac_str = tlvf::mac_to_string(client_mac);
+
+    // pWHM rejects an Add for an existing MAC/QMID, even an identical one, but the controller
+    // resends its installed descriptors. An identical installed descriptor is already applied.
+    auto installed =
+        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(qos_mgmt_path + "QosMgmtDesc.");
+    if (installed) {
+        for (const auto &it : *installed) {
+            const auto &entry = it.second;
+
+            uint32_t entry_qmid = 0;
+            std::string entry_mac;
+            std::string entry_descriptor;
+            if (!entry.read_child(entry_qmid, "qmid") ||
+                !entry.read_child(entry_mac, "MACAddress") ||
+                !entry.read_child(entry_descriptor, "Descriptor")) {
+                continue;
+            }
+
+            if (entry_qmid == qmid &&
+                beerocks::string_utils::case_insensitive_compare(entry_mac, client_mac_str) &&
+                beerocks::string_utils::case_insensitive_compare(entry_descriptor,
+                                                                 descriptor_hex)) {
+                LOG(DEBUG) << "QoS management descriptor qmid " << qmid << " for " << client_mac_str
+                           << " is already installed on " << qos_mgmt_path;
+                return true;
+            }
+        }
+    }
+
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("qmid", qmid);
-    args.add_child("MACAddress", tlvf::mac_to_string(client_mac));
+    args.add_child("MACAddress", client_mac_str);
     args.add_child("Descriptor", descriptor_hex);
 
     if (!m_ambiorix_cl.call(qos_mgmt_path, "handleQosMgmtDesc", args, result)) {

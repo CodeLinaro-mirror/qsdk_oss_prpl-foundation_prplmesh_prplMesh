@@ -53,9 +53,28 @@ private:
      * @brief Forward QoS management descriptor TLVs to the owning AP manager.
      *
      * @param cmdu_rx Service Prioritization Request CMDU.
+     * @param mid Service Prioritization Request MID.
      * @return true on success, false otherwise.
      */
-    bool handle_qos_management_descriptors(ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_qos_management_descriptors(ieee1905_1::CmduMessageRx &cmdu_rx, uint16_t mid);
+
+    /**
+     * @brief Handles Vendor Specific messages.
+     *
+     * @param[in] beerocks_header Shared pointer to beerocks header.
+     * @return true, if the message has been handled, otherwise false.
+     */
+    bool handle_vendor_specific(std::shared_ptr<beerocks_header> beerocks_header);
+
+    /**
+     * @brief Sends an Error Response with Profile-2 Error Code 0x0B for a QoS management
+     * descriptor the AP manager could not apply.
+     *
+     * @param[in] beerocks_header Shared pointer to beerocks header.
+     */
+    void
+    handle_vs_qos_management_descriptor_failure(std::shared_ptr<beerocks_header> beerocks_header);
+
     void handle_slave_channel_selection_response(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                  const sMacAddr &src_mac);
 

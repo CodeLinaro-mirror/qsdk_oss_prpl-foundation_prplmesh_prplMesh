@@ -52,6 +52,11 @@ bool ServicePrioritizationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx,
         handle_service_prioritization_request(cmdu_rx, src_mac);
         break;
     }
+    case ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE: {
+        // Internally, the 'handle_vendor_specific' might not really handle
+        // the CMDU, thus we need to return the real return value and not 'true'.
+        return handle_vendor_specific(beerocks_header);
+    }
     default: {
         // Message was not handled, therefore return false.
         return false;
@@ -308,7 +313,7 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
     }
 
     // Prepare error response message, in case we will need to fill it.
-    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
+    if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
         LOG(ERROR) << "CMDU creation has failed";
         return;
     }
@@ -364,7 +369,7 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
                   db->service_prioritization.dscp_mapping_table.begin());
     }
 
-    if (!handle_qos_management_descriptors(cmdu_rx)) {
+    if (!handle_qos_management_descriptors(cmdu_rx, mid)) {
         LOG(ERROR) << "Failed handling QoS management descriptors";
     }
 
@@ -374,7 +379,7 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
 }
 
 bool ServicePrioritizationTask::handle_qos_management_descriptors(
-    ieee1905_1::CmduMessageRx &cmdu_rx)
+    ieee1905_1::CmduMessageRx &cmdu_rx, uint16_t mid)
 {
     auto qos_mgmt_descriptors = cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>();
     if (qos_mgmt_descriptors.empty()) {
@@ -401,8 +406,9 @@ bool ServicePrioritizationTask::handle_qos_management_descriptors(
             return false;
         }
 
+        // The AP manager returns the MID in its failure notification.
         auto descriptor_request = message_com::create_vs_message<
-            beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>(m_cmdu_tx);
+            beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>(m_cmdu_tx, mid);
         if (!descriptor_request) {
             LOG(ERROR) << "Failed building QoS management descriptor request";
             return false;
@@ -429,6 +435,63 @@ bool ServicePrioritizationTask::handle_qos_management_descriptors(
     }
 
     return true;
+}
+
+bool ServicePrioritizationTask::handle_vendor_specific(
+    std::shared_ptr<beerocks_header> beerocks_header)
+{
+    if (!beerocks_header) {
+        LOG(ERROR) << "beerocks_header is nullptr";
+        return false;
+    }
+
+    switch (beerocks_header->action_op()) {
+    case beerocks_message::ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_FAILURE: {
+        handle_vs_qos_management_descriptor_failure(beerocks_header);
+        break;
+    }
+    default: {
+        // Message was not handled, therefore return false.
+        return false;
+    }
+    }
+    return true;
+}
+
+void ServicePrioritizationTask::handle_vs_qos_management_descriptor_failure(
+    std::shared_ptr<beerocks_header> beerocks_header)
+{
+    auto notification =
+        beerocks_header
+            ->addClass<beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_FAILURE>();
+    if (!notification) {
+        LOG(ERROR) << "addClass cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_FAILURE failed";
+        return;
+    }
+
+    // Error Response with the MID of the Service Prioritization Request (EasyMesh 20.2.3.1).
+    auto mid = beerocks_header->id();
+    if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation has failed";
+        return;
+    }
+
+    auto profile2_error_code_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2ErrorCode>();
+    if (!profile2_error_code_tlv) {
+        LOG(ERROR) << "addClass has failed";
+        return;
+    }
+
+    profile2_error_code_tlv->reason_code() = wfa_map::tlvProfile2ErrorCode::eReasonCode::
+        UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY;
+    if (!profile2_error_code_tlv->set_qmid(notification->qmid())) {
+        LOG(ERROR) << "set_qmid has failed";
+        return;
+    }
+
+    LOG(DEBUG) << "Sending ERROR_RESPONSE_MESSAGE for qmid=" << notification->qmid()
+               << ", bssid=" << notification->bssid() << ", mid=" << std::hex << mid;
+    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
 void ServicePrioritizationTask::gather_iface_details(

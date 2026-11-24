@@ -20,6 +20,13 @@
         extend using mib VHTCapabilities;
         extend using mib WiFi6Capabilities;
 
+        /* AP Radio Advanced Capabilities TLV. */
+        %read-only bool MSCSCapability;
+        %read-only bool SCSCapability;
+        %read-only bool QoSMapCapability;
+        %read-only bool DSCPPolicyCapability;
+        %read-only bool SCSTrafficDescriptionCapability;
+
         /* Authentication and Key Management (AKM) Suite (security mode) capabilities for the fronthaul BSS. */
         %read-only object AKMFrontHaul [] {
             counted with AKMFrontHaulNumberOfEntries;

@@ -47,7 +47,6 @@
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
-#include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2MetricCollectionInterval.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
@@ -612,7 +611,7 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
             return false;
         }
 
-        if (!add_ap_radio_advanced_capabilities_tlv(radio->front.iface_name)) {
+        if (!tlvf_utils::add_ap_radio_advanced_capabilities(m_cmdu_tx, *radio)) {
             return false;
         }
 
@@ -1041,34 +1040,6 @@ bool CapabilityReportingTask::add_ap_wifi6_capabilities(const std::string &iface
             return false;
         }
     }
-    return true;
-}
-
-bool CapabilityReportingTask::add_ap_radio_advanced_capabilities_tlv(const std::string &iface_name)
-{
-    auto db    = AgentDB::get();
-    auto radio = db->radio(iface_name);
-    if (!radio) {
-        return false;
-    }
-
-    auto ap_radio_advanced_capabilities_tlv =
-        m_cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
-    if (!ap_radio_advanced_capabilities_tlv) {
-        LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
-        return false;
-    }
-
-    ap_radio_advanced_capabilities_tlv->radio_uid() = radio->front.iface_mac;
-
-    /* Currently Set the flag as we don't support traffic separation. */
-    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
-        radio->front.hybrid_mode_supported;
-    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
-        .combined_profile1_and_profile2                                    = 0;
-    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().mscs = radio->mscs_supported;
-    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().scs  = radio->scs_supported;
-
     return true;
 }
 

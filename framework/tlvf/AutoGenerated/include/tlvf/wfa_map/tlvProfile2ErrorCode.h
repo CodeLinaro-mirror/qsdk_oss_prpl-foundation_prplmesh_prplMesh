@@ -42,6 +42,7 @@ class tlvProfile2ErrorCode : public BaseClass
             TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED = 0x7,
             TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED = 0x8,
             SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED = 0x9,
+            UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY = 0xb,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
@@ -54,6 +55,7 @@ class tlvProfile2ErrorCode : public BaseClass
             case TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED:         return "TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED";
             case TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED: return "TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED";
             case SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED:                                          return "SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED";
+            case UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY:                                return "UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY";
             }
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();
@@ -71,6 +73,9 @@ class tlvProfile2ErrorCode : public BaseClass
         bool alloc_service_prioritization_rule_id();
         uint32_t* service_prioritization_rule_id();
         bool set_service_prioritization_rule_id(const uint32_t service_prioritization_rule_id);
+        bool alloc_qmid();
+        uint16_t* qmid();
+        bool set_qmid(const uint16_t qmid);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -84,6 +89,8 @@ class tlvProfile2ErrorCode : public BaseClass
         bool m_bssid_allocated = false;
         uint32_t* m_service_prioritization_rule_id = nullptr;
         bool m_service_prioritization_rule_id_allocated = false;
+        uint16_t* m_qmid = nullptr;
+        bool m_qmid_allocated = false;
 };
 
 }; // close namespace: wfa_map

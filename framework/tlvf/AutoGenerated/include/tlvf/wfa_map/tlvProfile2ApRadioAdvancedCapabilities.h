@@ -36,7 +36,8 @@ class tlvProfile2ApRadioAdvancedCapabilities : public BaseClass
 
         typedef struct sAdvancedRadioCapabilities {
             #if defined(__LITTLE_ENDIAN_BITFIELD)
-            uint8_t reserved : 2;
+            uint8_t reserved : 1;
+            uint8_t qm_scs_traffic_description : 1;
             uint8_t dscp_policy : 1;
             uint8_t dscp_to_up_mapping : 1;
             uint8_t scs : 1;
@@ -50,7 +51,8 @@ class tlvProfile2ApRadioAdvancedCapabilities : public BaseClass
             uint8_t scs : 1;
             uint8_t dscp_to_up_mapping : 1;
             uint8_t dscp_policy : 1;
-            uint8_t reserved : 2;
+            uint8_t qm_scs_traffic_description : 1;
+            uint8_t reserved : 1;
             #else
             #error "Bitfield macros are not defined"
             #endif

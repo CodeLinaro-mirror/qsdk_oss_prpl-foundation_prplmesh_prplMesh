@@ -30,6 +30,15 @@ tlvProfile2ErrorCode:
       _phrase: |
         reason_code == eReasonCode::SERVICE_PRIORITIZATION_RULE_NOT_FOUND || 
         reason_code == eReasonCode::NUMBER_OF_SERVICE_PRIORITIZATION_RULES_EXCEEDED_THE_MAXIMUM_SUPPORTED
+  qmid:
+    _type: uint16_t
+    _comment: |
+      QoS Management ID of the QoS Management Descriptor TLV this error refers to.
+      This field shall be included if the reason code field is set to 0x0B.
+    _condition:
+      _using_members: reason_code
+      _phrase: |
+        reason_code == eReasonCode::UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY
 
 eReasonCode:
   _type: enum
@@ -41,3 +50,4 @@ eReasonCode:
   TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED: 0x07
   TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED: 0x08
   SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED: 0x09
+  UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY: 0x0B

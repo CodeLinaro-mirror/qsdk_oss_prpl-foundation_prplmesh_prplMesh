@@ -400,6 +400,9 @@ public:
             // Support for sending DSCP Policy Requests to associated STAs
             // and EasyMesh configuration of such policies
             bool dscp_policy;
+            // Support for QoS Management SCS Traffic Description and EasyMesh configuration
+            // of and/or extensions to SCS using traffic descriptions
+            bool qm_scs_traffic_description;
         } advanced_capabilities;
 
         struct sMetricReportingPolicies {

@@ -20,6 +20,7 @@
 #include "tlvf/ieee_1905_1/tlvWsc.h"
 #include "tlvf/wfa_map/tlvApCapability.h"
 #include "tlvf/wfa_map/tlvApRadioVbssCapabilities.h"
+#include "tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h"
 #include "tlvf/wfa_map/tlvProfile2ChannelScanResult.h"
 #include "tlvf/wfa_map/tlvProfile2ErrorCode.h"
 #include "tlvf/wfa_map/tlvSpatialReuseRequest.h"
@@ -1222,6 +1223,113 @@ int test_create_error_response_message()
     return errors;
 }
 
+int test_error_response_qos_management_qmid()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    uint8_t tx_buffer[256];
+    ieee1905_1::CmduMessageTx cmdu_tx(tx_buffer, sizeof(tx_buffer));
+
+    if (!cmdu_tx.create(0x1234, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type ERROR_RESPONSE_MESSAGE, has failed";
+        return 1;
+    }
+    auto error_code_tx = cmdu_tx.addClass<wfa_map::tlvProfile2ErrorCode>();
+    if (!error_code_tx) {
+        LOG(ERROR) << "addClass has failed";
+        return 1;
+    }
+    error_code_tx->reason_code() = wfa_map::tlvProfile2ErrorCode::eReasonCode::
+        UNABLE_TO_CONFIGURE_REQUESTED_QOS_MANAGEMENT_POLICY;
+    if (!error_code_tx->set_qmid(0xABCD)) {
+        LOG(ERROR) << "set_qmid has failed";
+        errors++;
+    }
+    // Reason_Code (1) + QMID (2), no BSSID and no Service Prioritization Rule ID.
+    errors += check_field<uint16_t>(error_code_tx->length(), 3, "length");
+
+    if (!cmdu_tx.finalize()) {
+        LOG(ERROR) << "Finalize step failed";
+        return errors + 1;
+    }
+
+    uint8_t recv_buffer[sizeof(tx_buffer)];
+    memcpy(recv_buffer, tx_buffer, sizeof(recv_buffer));
+    ieee1905_1::CmduMessageRx received_message(recv_buffer, sizeof(recv_buffer));
+    received_message.parse();
+
+    errors += check_field<uint16_t>(received_message.getMessageId(), 0x1234, "mid");
+    auto error_code_rx = received_message.getClass<wfa_map::tlvProfile2ErrorCode>();
+    if (!error_code_rx) {
+        LOG(ERROR) << "getClass<tlvProfile2ErrorCode> failed";
+        return errors + 1;
+    }
+    errors += check_field<uint8_t>(uint8_t(error_code_rx->reason_code()), 0x0B, "reason_code");
+    auto qmid = error_code_rx->qmid();
+    if (!qmid) {
+        LOG(ERROR) << "qmid is missing";
+        errors++;
+    } else {
+        errors += check_field<uint16_t>(*qmid, 0xABCD, "qmid");
+    }
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+int test_ap_radio_advanced_capabilities_qm_scs_traffic_description()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    uint8_t tx_buffer[256];
+    ieee1905_1::CmduMessageTx cmdu_tx(tx_buffer, sizeof(tx_buffer));
+
+    if (!cmdu_tx.create(1, ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type AP_CAPABILITY_REPORT_MESSAGE, has failed";
+        return 1;
+    }
+    auto caps_tx = cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+    if (!caps_tx) {
+        LOG(ERROR) << "addClass has failed";
+        return 1;
+    }
+    caps_tx->radio_uid() = tlvf::mac_from_string("01:02:03:04:05:06");
+
+    auto &capabilities_tx                      = caps_tx->advanced_radio_capabilities();
+    capabilities_tx.scs                        = 1;
+    capabilities_tx.qm_scs_traffic_description = 1;
+
+    if (!cmdu_tx.finalize()) {
+        LOG(ERROR) << "Finalize step failed";
+        return 1;
+    }
+
+    // tlvType (1) + tlvLength (2) + RUID (6), then the capabilities octet:
+    // SCS is bit 4 and QM_SCS_Traffic_Description is bit 1.
+    errors += check_field<uint8_t>(caps_tx->getStartBuffPtr()[9], 0x12, "capabilities octet");
+
+    uint8_t recv_buffer[sizeof(tx_buffer)];
+    memcpy(recv_buffer, tx_buffer, sizeof(recv_buffer));
+    ieee1905_1::CmduMessageRx received_message(recv_buffer, sizeof(recv_buffer));
+    received_message.parse();
+
+    auto caps_rx = received_message.getClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+    if (!caps_rx) {
+        LOG(ERROR) << "getClass<tlvProfile2ApRadioAdvancedCapabilities> failed";
+        return errors + 1;
+    }
+    errors +=
+        check_field<uint8_t>(caps_rx->advanced_radio_capabilities().qm_scs_traffic_description, 1,
+                             "qm_scs_traffic_description");
+    errors += check_field<uint8_t>(caps_rx->advanced_radio_capabilities().scs, 1, "scs");
+    errors += check_field<uint8_t>(caps_rx->advanced_radio_capabilities().mscs, 0, "mscs");
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
 int test_parse_assoc_frame()
 {
     int errors = 0;
@@ -2261,6 +2369,8 @@ int main(int argc, char *argv[])
     errors += test_build_assoc_frame();
     errors += test_parse_reassoc_frame();
     errors += test_create_error_response_message();
+    errors += test_error_response_qos_management_qmid();
+    errors += test_ap_radio_advanced_capabilities_qm_scs_traffic_description();
     errors += test_parse_ap_radio_vbss_capabilities();
     errors += test_create_ap_radio_vbss_response_cmdu();
     errors += test_virtual_bss_creation();
