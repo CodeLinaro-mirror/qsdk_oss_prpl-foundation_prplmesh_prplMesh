@@ -7098,22 +7098,12 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             retrigger_wds_ts("VAPS_LIST_UPDATE");
         }
 
-        for (auto &ap_mld_conf : db->ap_mld_configurations) {
-            if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {
-                ap_mld_conf.mld_config.mld_mac = vaps[vap_idx].ap_mld_mac;
-                LOG(DEBUG) << "AP MLD MAC for SSID: " << bss.ssid << ", BSSID: " << bss.mac
-                           << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
-                for (auto &affiliated_ap : ap_mld_conf.affiliated_aps) {
-                    if (affiliated_ap.ruid == radio->front.iface_mac) {
-                        LOG(DEBUG) << "Affiliated AP found ruid: " << affiliated_ap.ruid
-                                   << ", ap bssid: " << bss.mac << ", link_id: " << bss.link_id;
-                        affiliated_ap.bssid   = bss.mac;
-                        affiliated_ap.link_id = bss.link_id;
-                        break;
-                    }
-                }
-                break;
-            }
+        if (update_ap_mld_link(db->ap_mld_configurations, bss.ssid, radio->front.iface_mac, bss.mac,
+                               bss.link_id, vaps[vap_idx].ap_mld_mac)) {
+            LOG(DEBUG) << "Affiliated AP updated for SSID: " << bss.ssid
+                       << ", ruid: " << radio->front.iface_mac << ", bssid: " << bss.mac
+                       << ", link_id: " << int(bss.link_id)
+                       << ", AP MLD MAC: " << vaps[vap_idx].ap_mld_mac;
         }
     }
     return true;
@@ -7201,10 +7191,12 @@ bool slave_thread::add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx 
                 affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid =
                     (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
                 affiliated_ap->affiliated_ap_fields_valid().linkid_valid =
-                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                    affiliated_ap_conf.has_valid_link_id();
                 affiliated_ap->ruid()                   = affiliated_ap_conf.ruid;
                 affiliated_ap->affiliated_ap_mac_addr() = affiliated_ap_conf.bssid;
-                affiliated_ap->linkid()                 = affiliated_ap_conf.link_id;
+                affiliated_ap->linkid() = affiliated_ap->affiliated_ap_fields_valid().linkid_valid
+                                              ? affiliated_ap_conf.link_id
+                                              : 0;
 
                 if (!ap_mld->add_affiliated_ap(std::move(affiliated_ap))) {
                     LOG(ERROR)
