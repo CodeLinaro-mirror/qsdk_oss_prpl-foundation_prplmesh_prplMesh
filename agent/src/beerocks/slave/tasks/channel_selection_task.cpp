@@ -1653,6 +1653,17 @@ bool ChannelSelectionTask::check_received_preferences_contain_violation(const sM
     return true;
 }
 
+bool ChannelSelectionTask::is_wireless_backhaul_radio(const AgentDB::sRadio &radio) const
+{
+    auto db = AgentDB::get();
+    if (db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless ||
+        db->backhaul.selected_iface_name.empty()) {
+        return false;
+    }
+    // selected_iface_name is the bSTA interface; db->radio() resolves it by front or back name.
+    return db->radio(db->backhaul.selected_iface_name) == &radio;
+}
+
 bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMacAddr &radio_mac)
 {
     auto radio = AgentDB::get()->get_radio_by_mac(radio_mac);
@@ -1672,6 +1683,33 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
     LOG(DEBUG) << "Current Channel is [" << radio->wifi_channel
                << "] Operating Class:" << (int)operating_class
                << " and has a cumulative preference score of " << (int)current_preference;
+
+    /**
+     * A radio that carries the active wireless backhaul (bSTA connected) cannot change its
+     * channel or bandwidth on its own: they are dictated by the upstream AP the bSTA is
+     * associated to. Requesting a different chanspec (e.g. widening 20MHz -> 40MHz on the
+     * same primary channel) is rejected by the platform in favour of the connected endpoint,
+     * and on pWHM this results in a CSA/revert loop that repeatedly tears down the fronthaul
+     * VAPs and disrupts the backhaul link itself.
+     * Therefore keep the current chanspec: accept the request if the current channel is still
+     * operable according to the controller's preferences, otherwise decline it because
+     * switching would prevent the operation of the backhaul link.
+     */
+    if (is_wireless_backhaul_radio(*radio)) {
+        radio_request.channel_switch_needed = false;
+        if (current_preference == 0) {
+            LOG(WARNING) << "Radio " << radio_mac
+                         << " carries the active wireless backhaul and its current channel is"
+                            " non-operable per the controller's preferences, declining request";
+            radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
+                DECLINE_PREVENT_OPERATION_OF_BACKHAUL_LINK;
+        } else {
+            LOG(INFO) << "Radio " << radio_mac
+                      << " carries the active wireless backhaul, keeping current channel ["
+                      << radio->wifi_channel << "]";
+        }
+        return true;
+    }
 
     /**
      * Find the next best channel.

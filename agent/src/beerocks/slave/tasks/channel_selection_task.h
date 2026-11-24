@@ -211,6 +211,15 @@ private:
 
     bool check_received_preferences_contain_violation(const sMacAddr &radio_mac);
 
+    /**
+     * @brief Check whether the given radio carries the active wireless backhaul link,
+     * i.e. its bSTA is the selected backhaul interface.
+     *
+     * @param radio Radio to check.
+     * @return true if the agent's backhaul is wireless and goes through this radio.
+     */
+    bool is_wireless_backhaul_radio(const AgentDB::sRadio &radio) const;
+
     bool check_is_there_better_channel_than_current(const sMacAddr &radio_mac);
 
     bool handle_eht_operation_tlv(wfa_map::tlvEHTOperations &eht_ops_tlv);
