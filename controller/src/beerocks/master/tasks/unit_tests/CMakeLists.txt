@@ -73,20 +73,25 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     add_test(NAME traffic_separation_event_test
         COMMAND $<TARGET_FILE:traffic_separation_event_test>)
 
-    # Controller desired CCE state.
+    # VAL-04 (STEP-06): Controller desired CCE state.
     add_executable(dpp_onboarding_task_test
         ${CMAKE_CURRENT_LIST_DIR}/dpp_onboarding_task_test.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../task.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../dpp_onboarding_task.cpp
     )
+    if (COVERAGE)
+    target_compile_options(dpp_onboarding_task_test
+        PRIVATE --coverage -fPIC -O0 -g)
+    target_link_options(dpp_onboarding_task_test
+        PRIVATE --coverage)
+    endif()
     target_compile_definitions(dpp_onboarding_task_test
         PRIVATE
             IEEE1905_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/ieee1905.odl"
     )
     target_link_libraries(dpp_onboarding_task_test
         mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxp libamxrt gtest_main gmock)
-    # Like ieee1905_task_test: db.cpp's controller/son symbols stay unresolved; tests avoid them.
     target_link_options(dpp_onboarding_task_test
         PRIVATE
             -Wl,--unresolved-symbols=ignore-all

@@ -268,6 +268,15 @@ higher_layer_collection_task_test:
 dpp_unit_tests:
   extends: .run-test-in-docker
 
+dpp_protocol_task_test:
+  extends: .run-test-in-docker
+
+dpp_csign_test:
+  extends: .run-test-in-docker
+
+dpp_cce_indication_task_test:
+  extends: .run-test-in-docker
+
 dpp_akm_test:
   extends: .run-test-in-docker
 
@@ -275,6 +284,9 @@ dpp_configurator_session_test:
   extends: .run-test-in-docker
 
 dpp_onboarding_task_test:
+  extends: .run-test-in-docker
+
+provisioned_dpp_event_test:
   extends: .run-test-in-docker
 
 ieee1905_task_test:

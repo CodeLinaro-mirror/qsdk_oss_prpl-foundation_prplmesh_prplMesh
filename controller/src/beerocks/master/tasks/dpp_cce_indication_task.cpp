@@ -16,6 +16,7 @@
 
 namespace son {
 
+constexpr int dpp_cce_indication_task::k_retry_delay_ms;
 uint64_t dpp_cce_indication_task::s_latest_seq = 0;
 wfa_map::tlvDppCceIndication::eAdvertiseCee dpp_cce_indication_task::s_latest_advertise =
     wfa_map::tlvDppCceIndication::eAdvertiseCee::DISABLE;
