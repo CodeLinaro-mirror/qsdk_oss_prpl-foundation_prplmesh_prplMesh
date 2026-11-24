@@ -18,8 +18,7 @@ from device.prplos import GenericPrplOS
 class URXOSP(GenericPrplOS):
     """An MXL Open Service Platform URX device running prplOS.
 
-    A tftp server must be running to serve images, and both 'serverip'
-    and 'ipaddr' should already be set in the bootloader.
+    A tftp server must be running to serve images.
     """
 
     initialization_time = 280
@@ -50,6 +49,10 @@ class URXOSP(GenericPrplOS):
         shell.sendline("version")
         shell.expect("prpl-compat OCTOPUS-URX641-EMMC-OPEN_BOOT", timeout=5)
         shell.sendline("setenv prpl_legacy_boot on")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline(f"setenv serverip {self.serverip}")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline(f"setenv ipaddr {self.ipaddr}")
         shell.expect(self.bootloader_prompt)
         shell.sendline("saveenv")
         shell.expect("OK", timeout=5)

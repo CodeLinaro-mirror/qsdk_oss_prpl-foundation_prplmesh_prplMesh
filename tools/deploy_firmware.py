@@ -36,6 +36,16 @@ def main():
         required=True)
 
     parser.add_argument(
+        '-a',
+        '--ipaddr',
+        help="Bootloader IP address of the DUT", required=False)
+
+    parser.add_argument(
+        '-v',
+        '--serverip',
+        help="Bootloader IP address of the TFTP server", required=False)
+
+    parser.add_argument(
         '-f',
         '--full',
         action='store_true',
@@ -54,7 +64,8 @@ def main():
 
     args = parser.parse_args()
 
-    dev = device_from_name(args.device, args.target_name, args.image)
+    dev = device_from_name(args.device, args.target_name, args.image,
+                           args.ipaddr, args.serverip)
 
     def do_upgrade(dev):
         try:

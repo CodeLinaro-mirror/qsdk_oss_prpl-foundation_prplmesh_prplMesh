@@ -7,6 +7,7 @@
 
 # Standard library
 import difflib
+import ipaddress
 import os
 import re
 import time
@@ -63,7 +64,14 @@ class GenericDevice():
     tftp_dir = "/srv/tftp"
     """The root directory of the tftp server. OS images will be copied there."""
 
+    uboot_ipaddr = "192.165.100.155"
+    """The default bootloader IP address of the DUT"""
+
+    uboot_serverip = "192.165.100.199"
+    """The default bootloader IP address of the TFTP server"""
+
     def __init__(self, device: str, name: str, image: Union[str, None] = None,
+                 ipaddr: Union[str, None] = None, serverip: Union[str, None] = None,
                  username: str = "root"):
         """
 
@@ -75,12 +83,22 @@ class GenericDevice():
             The name of the device (it should ne reachable through ssh without a password).
         image: Union[str, None]
             The name of the image that can be used to upgrade the device.
+        ipaddr: Union[str, None], optional
+            The bootloader IP address of the DUT (defaults to `uboot_ipaddr`).
+        serverip: Union[str, None], optional
+            The bootloader IP address of the TFTP server (defaults to `uboot_serverip`).
         username: str, optional
             The username to use when connecting to the device over SSH.
         """
         self.device = device
         self.name = name
         self.image = image
+        if ipaddr is not None:
+            ipaddress.ip_address(ipaddr)
+        if serverip is not None:
+            ipaddress.ip_address(serverip)
+        self.ipaddr = ipaddr if ipaddr is not None else self.uboot_ipaddr
+        self.serverip = serverip if serverip is not None else self.uboot_serverip
         self.username = username
 
         self.rootdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
