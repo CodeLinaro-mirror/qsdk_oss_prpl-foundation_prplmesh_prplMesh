@@ -49,6 +49,12 @@ deploy() {
     # to fail without this:
     opkg remove --force-depends prplmesh prplmesh-dwpal prplmesh-nl80211
 
+    if pgrep -lf '^/opt/prplmesh/bin/'; then
+        echo "^ prplmesh processes still running after opkg remove, killing them"
+        pkill -9 -f '^/opt/prplmesh/bin/'
+    fi
+    sleep 5
+
     # currently opkg remove does not remove everything from /opt/prplmesh.
     # we want to keep /opt/prplmesh/share/agent for agent configuration.
     find /opt/prplmesh -mindepth 1 \
@@ -57,10 +63,6 @@ deploy() {
       ! -path "/opt/prplmesh/share/agent/*" \
       -exec rm -rf {} + || return 0
 
-    if pgrep -lf '^/opt/prplmesh/bin/'; then
-        echo "^ prplmesh processes still running after opkg remove, killing them"
-        pkill -9 -f '^/opt/prplmesh/bin/'
-    fi
 EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
