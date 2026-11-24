@@ -327,14 +327,14 @@ void base_wlan_hal_whm::subscribe_to_ap_events()
 void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
 {
     std::string wifi_ad_path        = wbapi_utils::search_path_ap() + "[0-9]+.AssociatedDevice.";
-    std::string affiliated_sta_path = wifi_ad_path + "[0-9]+.AffiliatedSta.";
+    std::string affiliated_sta_path = wifi_ad_path + "[0-9]+.AffiliatedSTA.";
     LOG(DEBUG) << "Subscribe to Affiliated_sta_path pattern: " << affiliated_sta_path;
 
     auto affiliated_link_handler        = std::make_shared<sAmbiorixEventHandler>();
     affiliated_link_handler->event_type = AMX_CL_OBJECT_CHANGED_EVT;
 
     affiliated_link_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
-        // Step 1: Extract AffiliatedSta path from event
+        // Step 1: Extract AffiliatedSTA path from event
         std::string affiliated_sta_path;
         if (!event_data.read_child(affiliated_sta_path, "path") || affiliated_sta_path.empty()) {
             LOG(WARNING) << "Failed to read path from event_data or path is empty";
@@ -342,11 +342,11 @@ void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
         }
 
         // Step 2: Extract parent AssociatedDevice path
-        // Example: Device.WiFi.AccessPoint.5.AssociatedDevice.1.AffiliatedSta.1.
+        // Example: Device.WiFi.AccessPoint.5.AssociatedDevice.1.AffiliatedSTA.1.
         //          → Device.WiFi.AccessPoint.5.AssociatedDevice.1.
-        size_t aff_sta_pos = affiliated_sta_path.find(".AffiliatedSta.");
+        size_t aff_sta_pos = affiliated_sta_path.find(".AffiliatedSTA.");
         if (aff_sta_pos == std::string::npos) {
-            LOG(WARNING) << " Failed to find '.AffiliatedSta.' in path: " << affiliated_sta_path;
+            LOG(WARNING) << " Failed to find '.AffiliatedSTA.' in path: " << affiliated_sta_path;
             return;
         }
 
@@ -369,7 +369,7 @@ void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
             std::find_if(m_vapsExtInfo.begin(), m_vapsExtInfo.end(),
                          [&](const auto &element) { return element.second.path == ap_path; });
         if (vap_it == m_vapsExtInfo.end()) {
-            LOG(DEBUG) << " Ignoring foreign AffiliatedSta event, ap_path=" << ap_path;
+            LOG(DEBUG) << " Ignoring foreign AffiliatedSTA event, ap_path=" << ap_path;
             return;
         }
         vap_ifname = vap_it->first;
@@ -381,7 +381,7 @@ void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
         //        No need to check transition (old vs new) because:
         //        1. "from" value may not be available if subscription was set up after change
         //        2. Client may move between AccessPoints (old AP has Active=0, new AP has Active=1)
-        //        3. We need to process REMOVE even when ActiveNumberOfAffiliatedSta=0
+        //        3. We need to process REMOVE even when ActiveNumberOfAffiliatedSTA=0
 
         LOG(DEBUG) << " Reading Active parameter from event_data";
         auto parameters = event_data.find_child("parameters");
@@ -428,24 +428,24 @@ void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
             return;
         }
 
-        // Step 6: Read AffiliatedSta MAC and BSSID
+        // Step 6: Read AffiliatedSTA MAC and BSSID
         // These are needed to identify which specific link changed
         std::string affiliated_sta_mac;
         std::string bssid_str;
         eAffiliatedLinkAction action;
 
         if (!m_ambiorix_cl.get_param<>(affiliated_sta_mac, affiliated_sta_path, "MACAddress")) {
-            LOG(WARNING) << " Failed to get AffiliatedSta MACAddress from path: "
+            LOG(WARNING) << " Failed to get AffiliatedSTA MACAddress from path: "
                          << affiliated_sta_path;
             return;
         }
 
         if (!m_ambiorix_cl.get_param<>(bssid_str, affiliated_sta_path, "BSSID")) {
-            LOG(WARNING) << " Failed to get AffiliatedSta BSSID from path: " << affiliated_sta_path;
+            LOG(WARNING) << " Failed to get AffiliatedSTA BSSID from path: " << affiliated_sta_path;
             return;
         }
-        LOG(DEBUG) << " AffiliatedSta MACAddress: " << affiliated_sta_mac
-                   << " AffiliatedSta BSSID: " << bssid_str;
+        LOG(DEBUG) << " AffiliatedSTA MACAddress: " << affiliated_sta_mac
+                   << " AffiliatedSTA BSSID: " << bssid_str;
 
         if (new_active) {
             action = AFFILIATED_LINK_ACTION_ADD;

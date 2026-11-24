@@ -1589,17 +1589,17 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
     mlo_info.ap_mld_bssid   = ap_mld_bssid;
     mlo_info.affiliated_links.clear();
 
-    // Get all AffiliatedSta entries as multi object
-    std::string affiliated_sta_path = sta_path + "AffiliatedSta.";
+    // Get all AffiliatedSTA entries as multi object
+    std::string affiliated_sta_path = sta_path + "AffiliatedSTA.";
     auto affiliated_sta_objects =
         m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(affiliated_sta_path);
 
     if (!affiliated_sta_objects || affiliated_sta_objects->empty()) {
-        LOG(ERROR) << "No AffiliatedSta entries found for " << sta_mac;
+        LOG(ERROR) << "No AffiliatedSTA entries found for " << sta_mac;
         return false;
     }
 
-    LOG(INFO) << "Found " << affiliated_sta_objects->size() << " AffiliatedSta entries for "
+    LOG(INFO) << "Found " << affiliated_sta_objects->size() << " AffiliatedSTA entries for "
               << sta_mac;
 
     // Read MLOMode from AssociatedDevice
@@ -1625,23 +1625,23 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
     mlo_info.client_mld_mac = tlvf::mac_from_string(sta_mac);
     LOG(DEBUG) << "Client MAC: " << mlo_info.client_mld_mac << ", APMLD: " << mlo_info.ap_mld_bssid;
 
-    // Iterate over all AffiliatedSta entries
+    // Iterate over all AffiliatedSTA entries
     for (auto &affiliated_sta : *affiliated_sta_objects) {
         if (mlo_info.affiliated_links.size() >= beerocks::message::DEV_MAX_RADIOS) {
-            LOG(INFO) << "AffiliatedSta list truncated for " << sta_mac
+            LOG(INFO) << "AffiliatedSTA list truncated for " << sta_mac
                       << " (max: " << int(beerocks::message::DEV_MAX_RADIOS) << ")";
             break;
         }
 
         std::string affiliated_mac;
         if (!affiliated_sta.second.read_child(affiliated_mac, "MACAddress")) {
-            LOG(ERROR) << "Failed reading AffiliatedSta MACAddress for " << sta_mac;
+            LOG(ERROR) << "Failed reading AffiliatedSTA MACAddress for " << sta_mac;
             continue;
         }
 
         bool is_active = false;
         if (!affiliated_sta.second.read_child(is_active, "Active") || !is_active) {
-            LOG(DEBUG) << "Skipping inactive AffiliatedSta link - Affiliated MAC: "
+            LOG(DEBUG) << "Skipping inactive AffiliatedSTA link - Affiliated MAC: "
                        << affiliated_mac << ", STA MAC: " << sta_mac;
             continue;
         }
@@ -1649,7 +1649,7 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
         std::string affiliated_bssid_str;
         sMacAddr affiliated_bssid = mlo_info.ap_mld_bssid;
         if (!affiliated_sta.second.read_child(affiliated_bssid_str, "BSSID")) {
-            LOG(ERROR) << "Failed reading AffiliatedSta BSSID, using AP MLD BSSID: "
+            LOG(ERROR) << "Failed reading AffiliatedSTA BSSID, using AP MLD BSSID: "
                        << affiliated_bssid;
         } else {
             affiliated_bssid = tlvf::mac_from_string(affiliated_bssid_str);
@@ -1667,7 +1667,7 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
 
     // Return false if we couldn't collect any valid affiliated links
     if (mlo_info.affiliated_links.empty()) {
-        LOG(ERROR) << "No valid AffiliatedSta entries collected for " << sta_mac;
+        LOG(ERROR) << "No valid AffiliatedSTA entries collected for " << sta_mac;
         return false;
     }
 

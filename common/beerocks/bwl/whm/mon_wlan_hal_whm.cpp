@@ -569,9 +569,9 @@ bool mon_wlan_hal_whm::get_affiliated_sta_stats(const std::string &sta_mac,
     // pWHM stores affiliated STAs from multiple radios under one parent AssociatedDevice.
     // Read all active links from that parent, including links on other radios.
     auto affiliated_sta_objects =
-        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(sta_path + "AffiliatedSta.");
+        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(sta_path + "AffiliatedSTA.");
     if (!affiliated_sta_objects) {
-        // A legacy STA returns an empty AffiliatedSta table; no reply is a read failure.
+        // A legacy STA returns an empty AffiliatedSTA table; no reply is a read failure.
         return false;
     }
 
@@ -588,7 +588,7 @@ bool mon_wlan_hal_whm::get_affiliated_sta_stats(const std::string &sta_mac,
         std::string bssid_string;
         if (!object.read_child(sta_mac_string, "MACAddress") ||
             !object.read_child(bssid_string, "BSSID")) {
-            LOG(WARNING) << "Incomplete AffiliatedSta identity under " << sta_path;
+            LOG(WARNING) << "Incomplete AffiliatedSTA identity under " << sta_path;
             continue;
         }
 
@@ -597,18 +597,25 @@ bool mon_wlan_hal_whm::get_affiliated_sta_stats(const std::string &sta_mac,
         stats.bssid   = tlvf::mac_from_string(bssid_string);
         if (stats.sta_mac == beerocks::net::network_utils::ZERO_MAC ||
             stats.bssid == beerocks::net::network_utils::ZERO_MAC) {
-            LOG(WARNING) << "Invalid AffiliatedSta identity under " << sta_path;
+            LOG(WARNING) << "Invalid AffiliatedSTA identity under " << sta_path;
             continue;
         }
-        if (!object.read_child(stats.bytes_sent, "BytesSent") ||
-            !object.read_child(stats.bytes_received, "BytesReceived") ||
-            !object.read_child(stats.packets_sent, "PacketsSent") ||
-            !object.read_child(stats.packets_received, "PacketsReceived") ||
-            !object.read_child(stats.packets_sent_errors, "ErrorsSent") ||
+        // TR-181 places the byte/packet counters in the nested Stats object, while
+        // signal strength and rate parameters remain on the AffiliatedSTA instance.
+        auto affiliated_sta_instance_path = affiliated_sta_object.first;
+        if (!affiliated_sta_instance_path.empty() && affiliated_sta_instance_path.back() != '.') {
+            affiliated_sta_instance_path += '.';
+        }
+        auto stats_obj = m_ambiorix_cl.get_object(affiliated_sta_instance_path + "Stats.");
+        if (!stats_obj || !stats_obj->read_child(stats.bytes_sent, "BytesSent") ||
+            !stats_obj->read_child(stats.bytes_received, "BytesReceived") ||
+            !stats_obj->read_child(stats.packets_sent, "PacketsSent") ||
+            !stats_obj->read_child(stats.packets_received, "PacketsReceived") ||
+            !stats_obj->read_child(stats.packets_sent_errors, "ErrorsSent") ||
             !object.read_child(stats.signal_strength, "SignalStrength") ||
             !object.read_child(stats.last_data_downlink_rate, "LastDataDownlinkRate") ||
             !object.read_child(stats.last_data_uplink_rate, "LastDataUplinkRate")) {
-            LOG(WARNING) << "Incomplete AffiliatedSta metrics for " << stats.sta_mac << " under "
+            LOG(WARNING) << "Incomplete AffiliatedSTA metrics for " << stats.sta_mac << " under "
                          << sta_path;
             // Reject partial samples instead of reporting the MLD as a legacy STA.
             sta_stats.clear();

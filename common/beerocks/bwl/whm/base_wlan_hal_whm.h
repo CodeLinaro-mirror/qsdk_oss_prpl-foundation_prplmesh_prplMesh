@@ -157,14 +157,14 @@ protected:
                                             const beerocks::wbapi::AmbiorixVariant *event_data);
 
     /**
-    * @brief Queue AffiliatedSta link ADD/REMOVE for AP manager processing.
+    * @brief Queue AffiliatedSTA link ADD/REMOVE for AP manager processing.
     * @return true on success, false on error.
     */
     virtual bool process_affiliated_link_changed_event(const std::string &interface,
                                                        std::shared_ptr<void> event_data);
 
     /**
-    * @brief Subscribe to AffiliatedSta Active changes for MLO link updates.
+    * @brief Subscribe to AffiliatedSTA Active changes for MLO link updates.
     */
     void subscribe_to_affiliated_sta_events();
     void subscribe_to_afc_update_events();
