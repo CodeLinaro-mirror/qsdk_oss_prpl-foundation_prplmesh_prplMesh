@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  * SPDX-FileCopyrightText: 2026 the prplMesh contributors (see AUTHORS.md)
  */
+#include "../../controller_dpp_configuration.h"
 #include "../../dpp/dpp_gas.h"
 #include "../../dpp/dpp_internal.h"
+#include "../db.h"
 
 #include <gtest/gtest.h>
 #include <openssl/obj_mac.h>
@@ -10,6 +12,7 @@
 #include <openssl/x509.h>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -746,4 +749,243 @@ TEST_F(DppExchangeTest, ResultFrameValidationStages)
         }
     }
 }
+
+const std::string k_map_agent_request =
+    R"({"name":"Agent","wi-fi_tech":"map","netRole":"mapAgent","bSTAList":[{"netRole":"mapBackhaulSta","akm":"506F9A02+000FAC08","channelList":"81/1"}]})";
+
+// PUBLIC_INTERFACE
+/**
+ * Policy outcome of build_dpp_configuration_objects_from_policy() for an authenticated session,
+ * a known Agent and configured BSSs. The key-injected overload avoids the DPP keystore.
+ */
+class DppPolicyObjectsTest : public DppExchangeTest {
+protected:
+    /** Fields of one Configuration Object that the policy decides. */
+    struct PolicyObject {
+        std::string wifi_tech, net_role, ssid, akm, pass;
+        int df_counter_threshold = -1;
+        bool has_discovery = false, has_mld_config = false, signed_connector = false,
+             has_csign = false;
+
+        /** Comparable summary; signatures and keys differ per build, the policy does not. */
+        std::string describe() const
+        {
+            return wifi_tech + "|" + net_role + "|" + std::to_string(df_counter_threshold) + "|" +
+                   (has_discovery ? "ssid=" + ssid : "no-discovery") + "|" + akm + "|" + pass +
+                   (has_mld_config ? "|mld" : "");
+        }
+    };
+
+    void SetUp() override
+    {
+        log_config.sLog.global_levels = "error,fatal,warning";
+        log_config.sLog.syslog_levels = "off";
+        logger.reset(new beerocks::logging("dpp-test", log_config.sLog));
+        database.reset(
+            new son::db(db_config, *logger, tlvf::mac_from_string("02:00:00:00:00:01"), nullptr));
+        database->m_agents.add(agent_mac);
+        ASSERT_TRUE(dpp::generate_ec_key(NID_X9_62_prime256v1, csign));
+        initialize();
+        ASSERT_FALSE(HasFatalFailure());
+        authenticate();
+        ASSERT_FALSE(HasFatalFailure());
+    }
+
+    void add_agent_bss(const std::string &ssid, bool backhaul, WSC::eWscAuth auth,
+                       const std::string &key)
+    {
+        son::wireless_utils::sBssInfoConf bss{};
+        bss.ssid                = ssid;
+        bss.fronthaul           = !backhaul;
+        bss.backhaul            = backhaul;
+        bss.authentication_type = auth;
+        bss.network_key         = key;
+        database->add_bss_info_configuration(agent_mac, bss);
+    }
+
+    static std::string text(json_object *parent, const char *name)
+    {
+        json_object *value = nullptr;
+        if (!parent || !json_object_object_get_ex(parent, name, &value) ||
+            !json_object_is_type(value, json_type_string)) {
+            return {};
+        }
+        return json_object_get_string(value);
+    }
+
+    static PolicyObject parse_object(const std::string &object_json)
+    {
+        PolicyObject out;
+        std::unique_ptr<json_object, decltype(&json_object_put)> root(
+            json_tokener_parse(object_json.c_str()), json_object_put);
+        EXPECT_NE(nullptr, root.get()) << object_json;
+        if (!root) {
+            return out;
+        }
+        out.wifi_tech      = text(root.get(), "wi-fi_tech");
+        out.net_role       = text(root.get(), "netRole");
+        json_object *value = nullptr;
+        if (json_object_object_get_ex(root.get(), "dfCounterThreshold", &value)) {
+            out.df_counter_threshold = json_object_get_int(value);
+        }
+        json_object *discovery = nullptr;
+        out.has_discovery      = json_object_object_get_ex(root.get(), "discovery", &discovery);
+        out.has_mld_config =
+            json_object_object_get_ex(root.get(), "Backhaul_STA_MLD_Config", nullptr) ||
+            (discovery && json_object_object_get_ex(discovery, "Backhaul_STA_MLD_Config", nullptr));
+        out.ssid          = text(discovery, "ssid");
+        json_object *cred = nullptr;
+        if (json_object_object_get_ex(root.get(), "cred", &cred)) {
+            out.akm              = text(cred, "akm");
+            out.pass             = text(cred, "pass");
+            const auto connector = text(cred, "signedConnector");
+            out.signed_connector = std::count(connector.begin(), connector.end(), '.') == 2;
+            out.has_csign        = json_object_object_get_ex(cred, "csign", nullptr);
+        }
+        return out;
+    }
+
+    /** Run the policy builder and decode every produced Configuration Object. */
+    bool build(const std::string &request, std::vector<PolicyObject> &objects,
+               bool &send_conn_status)
+    {
+        std::vector<std::string> raw{"stale"};
+        send_conn_status = true;
+        const bool ok    = dpp::build_dpp_configuration_objects_from_policy(
+            *database, session, agent_mac, request, csign.get(), {}, {}, raw, send_conn_status,
+            error);
+        objects.clear();
+        for (const auto &object_json : raw) {
+            objects.push_back(parse_object(object_json));
+        }
+        return ok;
+    }
+
+    const sMacAddr agent_mac = tlvf::mac_from_string("02:00:00:00:00:02");
+    beerocks::config_file::sConfigMaster log_config{};
+    son::db::sDbMasterConfig db_config{};
+    std::unique_ptr<beerocks::logging> logger;
+    std::unique_ptr<son::db> database;
+    dpp::DppKeyPtr csign;
+};
+
+// PUBLIC_INTERFACE
+/** mapAgent + bSTAList: mapAgent object without discovery, then the backhaul bSTA object. */
+TEST_F(DppPolicyObjectsTest, MapAgentWithBackhaulStaBuildsBothObjects)
+{
+    add_agent_bss("Fronthaul", false, WSC::eWscAuth::WSC_AUTH_WPA2PSK, "fronthaul-pass");
+    add_agent_bss("Backhaul", true, WSC::eWscAuth::WSC_AUTH_SAE, "backhaul-pass");
+    std::vector<PolicyObject> objects;
+    bool send_conn_status = false;
+    ASSERT_TRUE(build(k_map_agent_request, objects, send_conn_status)) << error;
+    ASSERT_EQ(2u, objects.size());
+    EXPECT_EQ("map|mapAgent|3|no-discovery|dpp|", objects[0].describe());
+    EXPECT_EQ("map|mapBackhaulSta|-1|ssid=Backhaul|sae|backhaul-pass", objects[1].describe());
+    for (const auto &object : objects) {
+        EXPECT_TRUE(object.signed_connector);
+        EXPECT_TRUE(object.has_csign);
+    }
+    EXPECT_TRUE(send_conn_status);
+}
+
+// PUBLIC_INTERFACE
+/** A plain sta request gets the fronthaul BSS and no Connection Status Result request. */
+TEST_F(DppPolicyObjectsTest, StaOnlyRequestUsesFronthaulBss)
+{
+    add_agent_bss("Backhaul", true, WSC::eWscAuth::WSC_AUTH_SAE, "backhaul-pass");
+    add_agent_bss("Fronthaul", false, WSC::eWscAuth::WSC_AUTH_WPA2PSK, "fronthaul-pass");
+    std::vector<PolicyObject> objects;
+    bool send_conn_status = true;
+    ASSERT_TRUE(build(R"({"wi-fi_tech":"infra","netRole":"sta"})", objects, send_conn_status))
+        << error;
+    ASSERT_EQ(1u, objects.size());
+    EXPECT_EQ("infra|sta|-1|ssid=Fronthaul|psk|fronthaul-pass", objects[0].describe());
+    EXPECT_TRUE(objects[0].signed_connector);
+    EXPECT_FALSE(send_conn_status);
+}
+
+// PUBLIC_INTERFACE
+/** bSTAList without mapAgent: only the bSTA object, as wi-fi_tech infra for wpa_supplicant. */
+TEST_F(DppPolicyObjectsTest, BackhaulStaOnlyRequestUsesInfraTech)
+{
+    add_agent_bss("Backhaul", true, WSC::eWscAuth::WSC_AUTH_SAE, "backhaul-pass");
+    std::vector<PolicyObject> objects;
+    bool send_conn_status = false;
+    ASSERT_TRUE(
+        build(R"({"wi-fi_tech":"map","bSTAList":[{"netRole":"mapBackhaulSta","akm":"000FAC08"}]})",
+              objects, send_conn_status))
+        << error;
+    ASSERT_EQ(1u, objects.size());
+    EXPECT_EQ("infra|mapBackhaulSta|-1|ssid=Backhaul|sae|backhaul-pass", objects[0].describe());
+    EXPECT_TRUE(send_conn_status);
+}
+
+// PUBLIC_INTERFACE
+/**
+ * Selection policy: the first configured backhaul BSS is authoritative. An incompatible AKM
+ * fails the whole build (no partial mapAgent object) instead of trying the next candidate.
+ */
+TEST_F(DppPolicyObjectsTest, FirstBackhaulCandidateIsAuthoritative)
+{
+    add_agent_bss("Legacy", true, WSC::eWscAuth::WSC_AUTH_WPA2PSK, "legacy-pass");
+    add_agent_bss("Wpa3", true, WSC::eWscAuth::WSC_AUTH_SAE, "wpa3-pass");
+    std::vector<PolicyObject> objects;
+    bool send_conn_status = true;
+    EXPECT_FALSE(build(
+        R"({"netRole":"mapAgent","bSTAList":[{"netRole":"mapBackhaulSta","akm":"000FAC08"}]})",
+        objects, send_conn_status));
+    EXPECT_EQ("Configured backhaul AKM is not compatible with DPP Configuration Request", error);
+    EXPECT_TRUE(objects.empty());
+    EXPECT_FALSE(send_conn_status);
+
+    ASSERT_TRUE(build(
+        R"({"netRole":"mapAgent","bSTAList":[{"netRole":"mapBackhaulSta","akm":"506F9A02+000FAC02+000FAC08"}]})",
+        objects, send_conn_status))
+        << error;
+    ASSERT_EQ(2u, objects.size());
+    EXPECT_EQ("map|mapBackhaulSta|-1|ssid=Legacy|psk|legacy-pass", objects[1].describe());
+    EXPECT_TRUE(send_conn_status);
+}
+
+// PUBLIC_INTERFACE
+/**
+ * bSTA_Maximum_Links / RadioList are not applied: an MLO-capable request gets the same
+ * single-link objects as a plain request, and no Backhaul_STA_MLD_Config.
+ */
+TEST_F(DppPolicyObjectsTest, BackhaulMloMetadataFallsBackToSingleLink)
+{
+    add_agent_bss("Backhaul", true, WSC::eWscAuth::WSC_AUTH_SAE, "backhaul-pass");
+    std::vector<PolicyObject> single_link, mlo;
+    bool send_conn_status = false;
+    ASSERT_TRUE(build(k_map_agent_request, single_link, send_conn_status)) << error;
+    ASSERT_TRUE(build(
+        R"({"name":"Agent","wi-fi_tech":"map","netRole":"mapAgent","bSTAList":[{"netRole":"mapBackhaulSta","akm":"506F9A02+000FAC08","channelList":"81/1","bSTA_Maximum_Links":2,"RadioList":[{"RUID":"020000000010","bSTA_STR_Support":true},{"RUID":"020000000011","bSTA_EMLSR_Support":true}]}]})",
+        mlo, send_conn_status))
+        << error;
+    ASSERT_EQ(single_link.size(), mlo.size());
+    for (size_t i = 0; i < mlo.size(); ++i) {
+        EXPECT_EQ(single_link[i].describe(), mlo[i].describe());
+        EXPECT_FALSE(mlo[i].has_mld_config);
+    }
+    EXPECT_TRUE(send_conn_status);
+}
+
+// PUBLIC_INTERFACE
+/** The key-injected overload still validates the request first, then requires a C-sign key. */
+TEST_F(DppPolicyObjectsTest, InjectedKeyOverloadRequiresCsignKey)
+{
+    add_agent_bss("Backhaul", true, WSC::eWscAuth::WSC_AUTH_SAE, "backhaul-pass");
+    std::vector<std::string> objects{"stale"};
+    bool send_conn_status = true;
+    EXPECT_FALSE(dpp::build_dpp_configuration_objects_from_policy(
+        *database, session, agent_mac, "{}", nullptr, {}, {}, objects, send_conn_status, error));
+    EXPECT_EQ("DPP Configuration Request contained no netRole", error);
+    EXPECT_FALSE(dpp::build_dpp_configuration_objects_from_policy(
+        *database, session, agent_mac, k_map_agent_request, nullptr, {}, {}, objects,
+        send_conn_status, error));
+    EXPECT_EQ("Missing DPP Configurator C-sign key", error);
+    EXPECT_TRUE(objects.empty());
+    EXPECT_FALSE(send_conn_status);
+}
+
 } // namespace

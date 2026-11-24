@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
-#include <unordered_set>
 
 namespace son {
 namespace controller_dpp {
@@ -383,27 +382,22 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
     return true;
 }
 
-bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSession &session,
-                                                 const sMacAddr &agent_mac,
-                                                 const std::string &configuration_request_json,
-                                                 std::vector<std::string> &config_objects,
-                                                 bool &send_conn_status, std::string &error)
-{
-    config_objects.clear();
-    send_conn_status = false;
-    error.clear();
+namespace {
 
-    std::vector<std::string> requested_roles;
-    std::string requested_backhaul_akm;
-    bool bsta_max_links = false;
-    std::unordered_set<std::string> bsta_ruids;
+/**
+ * Parse the Enrollee Configuration Request into the requested netRoles and bSTAList AKM.
+ * Malformed or role-less requests fail here, before any keystore access.
+ */
+bool parse_policy_request(const std::string &configuration_request_json,
+                          std::vector<std::string> &requested_roles,
+                          std::string &requested_backhaul_akm, std::string &error)
+{
+    // bSTA_Maximum_Links / RadioList are not requested: only single-link backhaul is supported.
     if (!parse_dpp_config_request_objects(configuration_request_json, requested_roles,
-                                          &requested_backhaul_akm, &bsta_max_links, &bsta_ruids)) {
+                                          &requested_backhaul_akm, nullptr, nullptr)) {
         error = "Failed parsing DPP Configuration Request object";
         return false;
     }
-    (void)bsta_max_links;
-    (void)bsta_ruids;
 
     std::ostringstream parsed_roles;
     for (size_t i = 0; i < requested_roles.size(); ++i) {
@@ -428,16 +422,17 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         error = "Empty DPP Configuration Request";
         return false;
     }
+    return true;
+}
 
-    DppKeyPtr csign_key;
-    if (!load_dpp_configurator_csign_key(database, csign_key, error)) {
-        return false;
-    }
-
-    std::string pp_key_hex;
-    std::string group_id;
-    load_optional_controller_key_params(database, pp_key_hex, group_id);
-
+/** Build the Configuration Objects for the parsed roles with already-loaded signing keys. */
+bool build_policy_objects(db &database, DppConfiguratorSession &session, const sMacAddr &agent_mac,
+                          const std::vector<std::string> &requested_roles,
+                          const std::string &requested_backhaul_akm, DppKey *csign_key,
+                          const std::string &pp_key_hex, const std::string &group_id,
+                          std::vector<std::string> &config_objects, bool &send_conn_status,
+                          std::string &error)
+{
     auto agent = database.m_agents.get(agent_mac);
 
     auto build_object = [&](const std::string &net_role, const std::string &ssid_hex,
@@ -447,9 +442,8 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         if (!session.build_connector_payload(net_role, group_id, 0, connector_payload, error)) {
             return false;
         }
-        return build_dpp_configuration_object(csign_key.get(), pp_key_hex, connector_payload,
-                                              ssid_hex, net_role, group_id, options, object_json,
-                                              error);
+        return build_dpp_configuration_object(csign_key, pp_key_hex, connector_payload, ssid_hex,
+                                              net_role, group_id, options, object_json, error);
     };
 
     const bool want_sta_only = role_requested(requested_roles, "sta") &&
@@ -553,6 +547,81 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         return false;
     }
     return true;
+}
+
+/** Failed builds never leave partial objects (e.g. a mapAgent object before a bSTA error). */
+bool finish_policy_build(bool ok, std::vector<std::string> &config_objects, bool &send_conn_status)
+{
+    if (!ok) {
+        config_objects.clear();
+        send_conn_status = false;
+    }
+    return ok;
+}
+
+} // namespace
+
+bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSession &session,
+                                                 const sMacAddr &agent_mac,
+                                                 const std::string &configuration_request_json,
+                                                 std::vector<std::string> &config_objects,
+                                                 bool &send_conn_status, std::string &error)
+{
+    config_objects.clear();
+    send_conn_status = false;
+    error.clear();
+
+    std::vector<std::string> requested_roles;
+    std::string requested_backhaul_akm;
+    if (!parse_policy_request(configuration_request_json, requested_roles, requested_backhaul_akm,
+                              error)) {
+        return false;
+    }
+
+    DppKeyPtr csign_key;
+    if (!load_dpp_configurator_csign_key(database, csign_key, error)) {
+        return false;
+    }
+
+    std::string pp_key_hex;
+    std::string group_id;
+    load_optional_controller_key_params(database, pp_key_hex, group_id);
+
+    return finish_policy_build(build_policy_objects(database, session, agent_mac, requested_roles,
+                                                    requested_backhaul_akm, csign_key.get(),
+                                                    pp_key_hex, group_id, config_objects,
+                                                    send_conn_status, error),
+                               config_objects, send_conn_status);
+}
+
+bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSession &session,
+                                                 const sMacAddr &agent_mac,
+                                                 const std::string &configuration_request_json,
+                                                 DppKey *csign_key, const std::string &pp_key_hex,
+                                                 const std::string &group_id,
+                                                 std::vector<std::string> &config_objects,
+                                                 bool &send_conn_status, std::string &error)
+{
+    config_objects.clear();
+    send_conn_status = false;
+    error.clear();
+
+    std::vector<std::string> requested_roles;
+    std::string requested_backhaul_akm;
+    if (!parse_policy_request(configuration_request_json, requested_roles, requested_backhaul_akm,
+                              error)) {
+        return false;
+    }
+    if (!csign_key) {
+        error = "Missing DPP Configurator C-sign key";
+        return false;
+    }
+
+    return finish_policy_build(build_policy_objects(database, session, agent_mac, requested_roles,
+                                                    requested_backhaul_akm, csign_key, pp_key_hex,
+                                                    group_id, config_objects, send_conn_status,
+                                                    error),
+                               config_objects, send_conn_status);
 }
 
 } // namespace controller_dpp
