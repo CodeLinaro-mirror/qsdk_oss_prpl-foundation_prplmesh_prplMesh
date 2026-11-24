@@ -235,8 +235,8 @@ TOOLCHAIN_PROFILES=(
 )
 CACHE_DIR="${rootdir}/build"
 PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos mainline-23.05_2026-11-02
-PRPLOS_VERSION='ee5a2851076a9a8ad2c829ab6ed6a17b19797bb8'
+# prplos mainline-23.05_2026-11-20
+PRPLOS_VERSION='c48e9c45978c31fd0f0c9b944fa143105e8e8f3b'
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
