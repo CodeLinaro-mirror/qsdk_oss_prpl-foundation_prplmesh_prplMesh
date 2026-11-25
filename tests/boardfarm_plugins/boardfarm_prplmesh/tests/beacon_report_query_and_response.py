@@ -99,4 +99,13 @@ class BeaconReportQueryAndResponse(PrplMeshBaseTest):
         assert beacon_resp_tlv.beacon_metrics_mac_addr == sta.mac, \
             "Wrong beacon metrics mac addr in Beacon Respond"
 
+        # Controller acknowledges the response within one second, using the response MID.
+        time.sleep(1)
+        ack = self.check_cmdu_type_single(
+            "ACK for Beacon Metrics Response",
+            self.ieee1905['eMessageType']['ACK_MESSAGE'],
+            controller.mac, agent.mac, beacon_resp.ieee1905_mid)
+        assert 0 <= ack.frame_time_epoch - beacon_resp.frame_time_epoch <= 1, \
+            "Controller did not acknowledge Beacon Metrics Response within one second"
+
         sta.wifi_disconnect(agent.radios[0].vaps[0])
