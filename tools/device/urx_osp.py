@@ -6,6 +6,10 @@
 ###############################################################
 
 # Standard library
+import glob
+import gzip
+import os
+import shutil
 import time
 
 # Third party
@@ -30,6 +34,19 @@ class URXOSP(GenericPrplOS):
 
     bootloader_reboot_command = "run bootcmd"
     """The command to reboot the device in u-boot"""
+
+    def copy_extra_tftp_files(self):
+        """On OSPv2, the ext4.fs rootfs is also needed for the upgrade, gzipped."""
+        if self.device != "urx_ospv2":
+            return
+        rootfs = glob.glob(os.path.join(self.artifacts_dir, "*ext4.fs"))
+        if len(rootfs) != 1:
+            raise ValueError("Expected exactly one '*ext4.fs' in {}, found: {}".format(
+                self.artifacts_dir, rootfs))
+        rootfs_gz = os.path.join(self.tftp_dir, os.path.basename(rootfs[0]) + ".gz")
+        print("Compressing '{}' to '{}'".format(rootfs[0], rootfs_gz))
+        with open(rootfs[0], "rb") as f_in, gzip.open(rootfs_gz, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
     def upgrade_from_u_boot(self, shell: pexpect.fdpexpect.fdspawn):
         """Upgrade from u-boot and remove the overlay.

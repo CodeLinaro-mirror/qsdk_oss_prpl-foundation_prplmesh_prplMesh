@@ -59,6 +59,12 @@ class GenericPrplOS(GenericDevice):
             version = shell.before.decode().splitlines()[1:]
         return version
 
+    def copy_extra_tftp_files(self):
+        """Copy additional files needed for the upgrade to the tftp directory.
+
+        Called after the image was copied. Does nothing by default.
+        """
+
     def upgrade_bootloader(self):
         """Upgrade the device through u-boot.
 
@@ -71,7 +77,8 @@ class GenericPrplOS(GenericDevice):
                              + "Please make sure you have an appropriate udev rule for it.")
         print("Copying image '{}' to '{}'".format(self.image, self.tftp_dir))
         shutil.copy(os.path.join(self.artifacts_dir, self.image), self.tftp_dir)
-        print("Image copied to {}.".format(self.tftp_dir))
+        self.copy_extra_tftp_files()
+        print("Image(s) copied to {}.".format(self.tftp_dir))
         with SerialDevice(self.baudrate, self.name, self.serial_prompt,
                           expect_prompt_on_connect=False) as shell:
             self.reboot(self.check_serial_type(),
