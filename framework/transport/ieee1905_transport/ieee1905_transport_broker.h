@@ -13,8 +13,11 @@
 
 #include <mapf/transport/ieee1905_transport_messages.h>
 
+#include <deque>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace beerocks {
 namespace transport {
@@ -113,6 +116,18 @@ protected:
     virtual bool handle_msg(std::shared_ptr<Socket> sd, bool *fatal_error = nullptr);
 
 private:
+    using Frame = std::shared_ptr<const std::vector<uint8_t>>;
+
+    struct PendingWrites {
+        std::deque<Frame> frames;
+        size_t offset = 0;
+        size_t bytes  = 0;
+    };
+
+    bool send_or_queue(const std::shared_ptr<Socket> &socket, const Frame &frame);
+    void flush_pending_writes(const std::shared_ptr<Socket> &socket);
+    void shutdown_client(const std::shared_ptr<Socket> &socket);
+
     /**
      * @brief Handle broker subscribe/unsubscribe messages.
      * 
@@ -164,6 +179,8 @@ private:
      * Partially received message state for each connected socket.
      */
     std::unordered_map<std::shared_ptr<Socket>, messages::Message::ReadState> m_read_states;
+
+    std::unordered_map<std::shared_ptr<Socket>, PendingWrites> m_pending_writes;
 
     /**
      * Handler for internal (non-CMDU) messages.

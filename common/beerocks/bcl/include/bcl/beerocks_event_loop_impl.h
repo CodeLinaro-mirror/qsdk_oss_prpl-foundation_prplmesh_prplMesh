@@ -49,6 +49,8 @@ public:
      */
     bool remove_handlers(int fd) override;
 
+    bool set_write_handler(int fd, EventHandler handler) override;
+
     /**
      * @see EventLoop::set_handler_name
      */

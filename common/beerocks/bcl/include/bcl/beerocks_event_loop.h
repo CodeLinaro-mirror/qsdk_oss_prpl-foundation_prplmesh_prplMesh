@@ -115,6 +115,13 @@ public:
     virtual bool remove_handlers(int fd) = 0;
 
     /**
+     * @brief Replace the write handler on a registered file descriptor.
+     * An empty handler disables write readiness notifications.
+     * @return True on success and false otherwise.
+     */
+    virtual bool set_write_handler(int fd, EventHandler handler) = 0;
+
+    /**
      * @brief Runs message loop.
      *
      * Performs a single loop iteration and returns after processing IO events or when an error

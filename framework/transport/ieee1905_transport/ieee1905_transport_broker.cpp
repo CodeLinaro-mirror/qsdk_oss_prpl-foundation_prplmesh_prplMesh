@@ -13,9 +13,8 @@
 
 // System
 #include <cerrno>
-#include <sys/eventfd.h>
+#include <cstring>
 #include <sys/socket.h>
-#include <sys/uio.h>
 #include <utility>
 
 #include <easylogging++.h>
@@ -23,6 +22,11 @@
 namespace beerocks {
 namespace transport {
 namespace broker {
+
+// Limit both buffered payload and per-frame overhead for each subscriber.
+static constexpr size_t MAX_PENDING_BYTES  = 256 * 1024;
+static constexpr size_t MAX_PENDING_FRAMES = 1024;
+static constexpr size_t WRITE_BURST_FRAMES = 16;
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Functions ///////////////////////////
@@ -35,6 +39,34 @@ static bool is_restricted_type(uint32_t type)
     //       subscribing to BROKER specific message should be restricted.
 
     return false;
+}
+
+static bool write_frame(int fd, const std::vector<uint8_t> &frame, size_t &offset)
+{
+    while (offset < frame.size()) {
+        auto written =
+            send(fd, frame.data() + offset, frame.size() - offset, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (written > 0) {
+            offset += size_t(written);
+            continue;
+        }
+        if (written == 0) {
+            LOG(ERROR) << "Transport write to FD (" << fd << ") made no progress";
+            return false;
+        }
+
+        const int error = errno;
+        if (error == EINTR) {
+            continue;
+        }
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            return true;
+        }
+        LOG(ERROR) << "Transport write to FD (" << fd << ") failed after " << offset << "/"
+                   << frame.size() << " bytes: " << strerror(error);
+        return false;
+    }
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -129,32 +161,113 @@ bool BrokerServer::publish(const messages::Message &msg)
         return true;
     }
 
-    // Send the message to subscribed FDs. A failed complete write may have left a partial frame on
-    // the stream, so disconnect that subscriber before any later message can corrupt framing.
+    // Keep a single immutable copy of the wire frame for any subscribers that queue it.
+    const auto header = msg.header();
+    if (header.len > messages::Message::kMaxFrameLength) {
+        LOG(ERROR) << "Cannot publish oversized transport frame: " << header.len;
+        return false;
+    }
+    auto frame = std::make_shared<std::vector<uint8_t>>(sizeof(header) + header.len);
+    auto *out  = frame->data();
+    std::memcpy(out, &header, sizeof(header));
+    out += sizeof(header);
+    for (const auto &payload : msg.frames()) {
+        if (payload.len()) {
+            std::memcpy(out, payload.data(), payload.len());
+            out += payload.len();
+        }
+    }
+
     std::vector<std::shared_ptr<Socket>> failed_sockets;
     for (auto soc : types_set_it->second) {
         LOG(DEBUG) << "Sending message with type (0x" << std::hex << msg_opcode.value << std::dec
                    << ") to FD (" << soc->getSocketFd() << ")";
 
-        if (!messages::send_transport_message(*soc, msg)) {
-            LOG(ERROR) << "Failed sending message with type (0x" << std::hex << msg_opcode.value
-                       << std::dec << ") to FD (" << soc->getSocketFd() << ")";
+        if (!send_or_queue(soc, frame)) {
             failed_sockets.push_back(std::move(soc));
         }
     }
 
     for (auto &soc : failed_sockets) {
-        auto fd = soc->getSocketFd();
-        LOG(WARNING) << "Disconnecting FD (" << fd << ") after transport write failure";
-        socket_disconnected(soc);
-        if (shutdown(fd, SHUT_RDWR) != 0 && errno != ENOTCONN) {
-            LOG(ERROR) << "Failed shutting down FD (" << fd << "): " << strerror(errno);
-        }
+        shutdown_client(soc);
     }
 
     // A failed subscriber has been isolated. Publishing to it must not prevent the caller from
     // forwarding the same CMDU to its other destinations.
     return true;
+}
+
+bool BrokerServer::send_or_queue(const std::shared_ptr<Socket> &socket, const Frame &frame)
+{
+    const int fd = socket->getSocketFd();
+    auto it      = m_pending_writes.find(socket);
+    if (it != m_pending_writes.end()) {
+        auto &pending = it->second;
+        if (pending.frames.size() >= MAX_PENDING_FRAMES ||
+            frame->size() > MAX_PENDING_BYTES - pending.bytes) {
+            LOG(WARNING) << "Transport write queue full for FD (" << fd << "), disconnecting";
+            return false;
+        }
+        pending.frames.push_back(frame);
+        pending.bytes += frame->size();
+        return true;
+    }
+
+    size_t offset = 0;
+    if (!write_frame(fd, *frame, offset)) {
+        return false;
+    }
+    if (offset == frame->size()) {
+        return true;
+    }
+
+    LOG(DEBUG) << "Queueing transport write to FD (" << fd << ") after " << offset << "/"
+               << frame->size() << " bytes";
+    m_pending_writes.emplace(socket, PendingWrites{{frame}, offset, frame->size()});
+    return m_event_loop->set_write_handler(fd, [this, socket](int, EventLoop &) {
+        flush_pending_writes(socket);
+        return true;
+    });
+}
+
+void BrokerServer::flush_pending_writes(const std::shared_ptr<Socket> &socket)
+{
+    auto it = m_pending_writes.find(socket);
+    if (it == m_pending_writes.end()) {
+        return;
+    }
+
+    const int fd  = socket->getSocketFd();
+    auto &pending = it->second;
+    for (size_t i = 0; i < WRITE_BURST_FRAMES && !pending.frames.empty(); ++i) {
+        const auto &frame = *pending.frames.front();
+        if (!write_frame(fd, frame, pending.offset)) {
+            shutdown_client(socket);
+            return;
+        }
+        if (pending.offset < frame.size()) {
+            return;
+        }
+        pending.bytes -= frame.size();
+        pending.frames.pop_front();
+        pending.offset = 0;
+    }
+
+    if (pending.frames.empty()) {
+        m_pending_writes.erase(it);
+        if (!m_event_loop->set_write_handler(fd, {})) {
+            shutdown_client(socket);
+        }
+    }
+}
+
+void BrokerServer::shutdown_client(const std::shared_ptr<Socket> &socket)
+{
+    const int fd = socket->getSocketFd();
+    socket_disconnected(socket);
+    if (shutdown(fd, SHUT_RDWR) != 0 && errno != ENOTCONN) {
+        LOG(ERROR) << "Failed shutting down FD (" << fd << "): " << strerror(errno);
+    }
 }
 
 void BrokerServer::register_internal_message_handler(const MessageHandler &handler)
@@ -291,16 +404,6 @@ bool BrokerServer::socket_connected()
 
     LOG(DEBUG) << "Accepted new connection, sd=" << intptr_t(new_socket->getSocketFd());
 
-    // Set a write operation timeout for the new socket to 1ms to prevent system deadlocks and DoS.
-    // The broker is the communication backbone, and as such it should never block on IO operations.
-    // Read operations are polled (epoll) by the event loop, so we set the timeout on writes only.
-    // We do this on internal (Unix Domain) sockets only, since we assume that external (Hardware)
-    // sockets will never block indefinitely. Internal sockets are read by software processes,
-    // which can potentially hang and result in the broker "hanging" on write operations.
-    if (!new_socket->setWriteTimeout(1)) {
-        LOG(WARNING) << "Failed setting 'write' timeout for fd: " << new_socket->getSocketFd();
-    }
-
     // Add the newly accepted socket into the poll
     EventLoop::EventHandlers handlers{
         // Handlers name
@@ -312,15 +415,16 @@ bool BrokerServer::socket_connected()
                 bool fatal_error = false;
                 if (!handle_msg(new_socket, &fatal_error) && fatal_error) {
                     LOG(ERROR) << "Shutting down FD (" << fd << ") after message handling failure";
-                    socket_disconnected(new_socket);
-                    if (shutdown(fd, SHUT_RDWR) != 0 && errno != ENOTCONN) {
-                        LOG(ERROR) << "Failed shutting down FD (" << fd << "): " << strerror(errno);
-                    }
+                    shutdown_client(new_socket);
+                    return true;
                 }
+                // The event loop prioritizes reads. Pending output can progress even when
+                // this connection is continuously readable.
+                flush_pending_writes(new_socket);
                 return true;
             },
 
-        // Not implemented
+        // Enabled only while the connection has pending output.
         .on_write = nullptr,
 
         // Remove the socket on disconnections or errors
@@ -359,6 +463,7 @@ bool BrokerServer::socket_disconnected(std::shared_ptr<Socket> sd)
     }
 
     m_read_states.erase(sd);
+    m_pending_writes.erase(sd);
 
     return true;
 }

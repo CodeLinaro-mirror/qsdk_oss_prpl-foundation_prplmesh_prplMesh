@@ -19,6 +19,7 @@ class EventLoopMock : public EventLoop {
 public:
     MOCK_METHOD(bool, register_handlers, (int fd, const EventHandlers &handlers), (override));
     MOCK_METHOD(bool, remove_handlers, (int fd), (override));
+    MOCK_METHOD(bool, set_write_handler, (int fd, EventHandler handler), (override));
     MOCK_METHOD(int, run, (), (override));
     MOCK_METHOD(bool, set_handler_name, (int fd, const std::string &name), (override));
 };

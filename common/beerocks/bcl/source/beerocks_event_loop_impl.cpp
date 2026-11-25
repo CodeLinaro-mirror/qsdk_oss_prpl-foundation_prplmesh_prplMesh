@@ -11,6 +11,7 @@
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
+#include <utility>
 
 #include <easylogging++.h>
 
@@ -31,6 +32,20 @@ namespace beerocks {
 
 // Maximal number of events to process in a single epoll_wait call
 static constexpr int MAX_POLL_EVENTS = 17;
+
+static epoll_event make_poll_event(int fd, bool read_enabled, bool write_enabled)
+{
+    epoll_event event{};
+    event.data.fd = fd;
+    event.events  = EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+    if (read_enabled) {
+        event.events |= EPOLLIN;
+    }
+    if (write_enabled) {
+        event.events |= EPOLLOUT;
+    }
+    return event;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Implementation ///////////////////////////////
@@ -72,45 +87,34 @@ bool EventLoopImpl::register_handlers(int fd, const EventLoop::EventHandlers &ha
 
     LOG(INFO) << "Register handlers for FD (" << fd << ")" << get_fd_name_print(handlers.name);
 
-    // Helper lambda function for adding a fd to the poll, and register for the following
-    // events:
-    // EPOLLIN: The associated fd is available for read operations.
-    // EPOLLOUT: The associated fd is available for write operations.
-    // EPOLLRDHUP: Socket peer closed connection, or shut down writing half of connection.
-    // EPOLLERR: Error condition happened on the associated fd.
-    // EPOLLHUP: Hang up happened on the associated fd.
-    auto add_fd_to_epoll = [&](int fd) -> bool {
-        epoll_event event = {};
-        event.data.fd     = fd;
-        event.events      = EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-
-        // If read handler was set, also listen for POLL-IN events
-        if (handlers.on_read) {
-            event.events |= EPOLLIN;
-        }
-
-        // If write handler was set, also listen for POLL-OUT events
-        if (handlers.on_write) {
-            event.events |= EPOLLOUT;
-        }
-
-        if (epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
-            LOG(ERROR) << "Failed adding FD (" << fd << ")" << get_fd_name_print(handlers.name)
-                       << " to the poll: " << strerror(errno);
-            return false;
-        }
-
-        // Map the file descriptor to the event handlers structure
-        m_fd_to_event_handlers[fd] = handlers;
-
-        return true;
-    };
-
-    // Add the file descriptor to the poll
-    if (!add_fd_to_epoll(fd)) {
+    auto event = make_poll_event(fd, bool(handlers.on_read), bool(handlers.on_write));
+    if (epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
+        LOG(ERROR) << "Failed adding FD (" << fd << ")" << get_fd_name_print(handlers.name)
+                   << " to the poll: " << strerror(errno);
         return false;
     }
 
+    m_fd_to_event_handlers.emplace(fd, handlers);
+    return true;
+}
+
+bool EventLoopImpl::set_write_handler(int fd, EventHandler handler)
+{
+    auto it = m_fd_to_event_handlers.find(fd);
+    if (it == m_fd_to_event_handlers.end()) {
+        LOG(ERROR) << "Unable to find FD " << fd << " to update write readiness notifications";
+        return false;
+    }
+
+    auto &handlers = it->second;
+    auto event     = make_poll_event(fd, bool(handlers.on_read), bool(handler));
+    if (epoll_ctl(m_epoll_fd, EPOLL_CTL_MOD, fd, &event) == -1) {
+        LOG(ERROR) << "Failed updating FD (" << fd << ")" << get_fd_name_print(handlers.name)
+                   << " in the poll: " << strerror(errno);
+        return false;
+    }
+
+    handlers.on_write = std::move(handler);
     return true;
 }
 
