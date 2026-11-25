@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    bool request_switch_channel();
+    bool send_switch_channel_request(const sSwitchChannelRequest &request);
     /*
      * @brief Returns a pointer to the fsm that manages this interface.
 

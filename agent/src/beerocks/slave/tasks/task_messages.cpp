@@ -20,7 +20,8 @@ sSwitchChannelRequest::sSwitchChannelRequest()
 }
 
 sSwitchChannelRequest::sSwitchChannelRequest(const sSwitchChannelRequest &rhs)
-    : ifname(rhs.ifname), channel(rhs.channel), freq_type(rhs.freq_type), bandwidth(rhs.bandwidth)
+    : ifname(rhs.ifname), channel(rhs.channel), freq_type(rhs.freq_type), bandwidth(rhs.bandwidth),
+      wait_for_cac(rhs.wait_for_cac)
 {
 }
 
@@ -51,7 +52,10 @@ std::ostream &operator<<(std::ostream &os,
 
 // switch channel report //
 
-sSwitchChannelReport::sSwitchChannelReport() {}
+sSwitchChannelReport::sSwitchChannelReport()
+    : cac_happened(false), status(eSwitchChannelReportStatus::NOT_COMPUTED)
+{
+}
 
 sSwitchChannelReport::sSwitchChannelReport(
     bool cac_happened_, std::shared_ptr<const sSwitchChannelRequest> original_request_,
@@ -66,7 +70,7 @@ sSwitchChannelReport::sSwitchChannelReport(
 {
 }
 
-eSwitchChannelReportStatus sSwitchChannelReport::compute_switch_channel_report_status()
+eSwitchChannelReportStatus sSwitchChannelReport::compute_switch_channel_report_status() const
 {
     // the function calculates switch channel report status
 

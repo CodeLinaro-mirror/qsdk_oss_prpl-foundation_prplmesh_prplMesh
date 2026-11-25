@@ -6,6 +6,22 @@
 # See LICENSE file for more details.
 
 if (BUILD_TESTS)
+    set(cac_test_name coordinated_cac_lifecycle_test)
+    add_executable(${cac_test_name}
+        coordinated_cac_lifecycle_test.cpp
+        ../switch_channel_fsm.cpp
+        ../coordinated_cac_fsm.cpp
+        ../task_messages.cpp
+        ../../agent_db.cpp
+    )
+    target_include_directories(${cac_test_name} PRIVATE
+        ..
+        ${CMAKE_SOURCE_DIR}/common/beerocks/bwl/include
+    )
+    target_link_libraries(${cac_test_name} PRIVATE btlvf bpl gtest_main)
+    install(TARGETS ${cac_test_name} DESTINATION tests)
+    add_test(NAME ${cac_test_name} COMMAND $<TARGET_FILE:${cac_test_name}>)
+
     project(higher_layer_collection_task_test VERSION ${prplmesh_VERSION})
 
     set(unit_tests_sources

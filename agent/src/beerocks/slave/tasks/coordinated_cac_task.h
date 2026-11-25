@@ -19,7 +19,7 @@
 
 namespace beerocks {
 class BackhaulManager;
-class TaskPoolInerface;
+class TaskPoolInterface;
 
 namespace coordinated_cac {
 
@@ -48,8 +48,10 @@ class CacFsm : public beerocks::beerocks_fsm<fsm_state, fsm_event> {
 public:
     CacFsm()               = delete;
     CacFsm(const CacFsm &) = delete;
-    CacFsm(TaskPoolInterface &task_pool, BackhaulManager &backhaul_manager,
-           ieee1905_1::CmduMessageTx &cmdu_tx);
+    using Clock            = std::function<std::chrono::steady_clock::time_point()>;
+    using SendCmdu         = std::function<bool(const std::string &, ieee1905_1::CmduMessageTx &)>;
+    CacFsm(TaskPoolInterface &task_pool, ieee1905_1::CmduMessageTx &cmdu_tx, SendCmdu send_cmdu,
+           Clock now = std::chrono::steady_clock::now);
     ~CacFsm() {}
 
 private:
@@ -65,23 +67,28 @@ private:
      * nullptr if an error occurred.
      */
     std::shared_ptr<sSwitchChannelRequest>
-    send_switch_channel_request(uint8_t channel, beerocks::eWiFiBandwidth bandwidth);
+    send_switch_channel_request(uint8_t channel, beerocks::eWiFiBandwidth bandwidth,
+                                bool wait_for_cac = false);
     bool send_cac_request(beerocks::AgentDB::sRadio *db_radio);
     void reset();
     bool is_timeout_waiting_for_switch_channel_report();
     bool is_timeout_waiting_for_cac_termination();
+    bool update_wait_time(const void *args);
+    bool report_matches_request(const sSwitchChannelReport &report) const;
+    bool report_succeeded(const sSwitchChannelReport &report) const;
 
 private:
     // environment
     TaskPoolInterface &m_task_pool;
-    BackhaulManager &m_backhaul_manager;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
+    SendCmdu m_send_cmdu;
+    Clock m_now;
 
-    std::shared_ptr<sSwitchChannelRequest> m_first_switch_channel_request = nullptr;
+    std::shared_ptr<sSwitchChannelRequest> m_active_switch_channel_request = nullptr;
 
     // extracted form the request
     std::string m_ifname;
-    wfa_map::tlvProfile2CacRequest::sCacRequestRadio m_cac_request_radio;
+    wfa_map::tlvProfile2CacRequest::sCacRequestRadio m_cac_request_radio{};
 
     // original values
     uint8_t m_original_channel                 = 0;
@@ -90,7 +97,7 @@ private:
     int8_t m_original_secondary_channel_offset = 0;
 
     // max time to wait for switch channel
-    static constexpr std::chrono::seconds DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT{5};
+    static constexpr std::chrono::seconds DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT{20};
     std::chrono::seconds m_wait_for_switch_channel_report = DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT;
 
     // the point in time we we started waiting for switch channel

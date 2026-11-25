@@ -14,6 +14,8 @@
 
 namespace beerocks {
 
+struct sSwitchChannelRequest;
+
 /*
  * @brief A message indicating how long the switch-channel is expected to take,
  * used for example when cac-started is handled and the cac-time is taken from it.
@@ -27,11 +29,15 @@ namespace beerocks {
  *
  * @param ifname The interface name this message relates to.
  * @param duration_sec The time in seconds there is to wait for the switch channel.
+ * @param original_request The operation whose deadline is being updated.
+ * @param started_at The start of this duration, measured using the steady clock.
 
  */
 struct sSwitchChannelDurationTime {
     std::string ifname;
     std::chrono::seconds duration_sec;
+    std::shared_ptr<const sSwitchChannelRequest> original_request;
+    std::chrono::steady_clock::time_point started_at;
 };
 std::ostream &operator<<(std::ostream &os,
                          const sSwitchChannelDurationTime &switch_channel_duration_time);
@@ -88,6 +94,9 @@ struct sSwitchChannelRequest {
     uint8_t channel          = 0;
     eFreqType freq_type      = eFreqType::FREQ_UNKNOWN;
     eWiFiBandwidth bandwidth = eWiFiBandwidth::BANDWIDTH_UNKNOWN;
+    // A channel-change notification can precede CAC. In this case only CAC completion
+    // finishes the request. Channels already cleared for use do not require another CAC.
+    bool wait_for_cac = false;
 };
 std::ostream &operator<<(std::ostream &os, const sSwitchChannelRequest &switch_channel_request);
 
@@ -131,7 +140,7 @@ struct sSwitchChannelReport {
      *
      * @return The computed eSwitchChannelReportStatus.
      */
-    eSwitchChannelReportStatus compute_switch_channel_report_status();
+    eSwitchChannelReportStatus compute_switch_channel_report_status() const;
 
     bool cac_happened;
     std::shared_ptr<const sSwitchChannelRequest> original_request;
