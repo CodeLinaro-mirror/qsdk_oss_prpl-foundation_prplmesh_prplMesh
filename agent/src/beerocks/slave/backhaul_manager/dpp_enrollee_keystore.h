@@ -118,6 +118,12 @@ bool decode_uri_public_key(const std::string &uri, std::vector<uint8_t> &der);
 /** True if the K: key of uri is the key held by store. */
 bool uri_matches_key(const std::string &uri, const DppEnrolleeKeyStore &store);
 
+/**
+ * Builds the minimal bootstrap URI "DPP:V:2;K:<base64>;;" for public_der (standard base64 with
+ * '=' padding). Empty if public_der is empty or cannot be encoded.
+ */
+std::string build_bootstrap_uri(const std::vector<uint8_t> &public_der);
+
 } // namespace dpp_enrollee
 } // namespace beerocks
 

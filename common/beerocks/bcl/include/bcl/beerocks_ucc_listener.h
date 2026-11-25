@@ -186,8 +186,16 @@ protected:
     virtual bool handle_dev_set_rfeature(const std::unordered_map<std::string, std::string> &params,
                                          std::string &err_string)                      = 0;
 
+    /**
+     * @brief Handles DEV_EXEC_ACTION.
+     *
+     * @param[in] params Command parameters (keys in lowercase).
+     * @param[out] err_string Error description, set on failure.
+     * @param[out] reply_value Optional "name,value" pairs appended to the COMPLETE reply.
+     * @return true on success, false otherwise.
+     */
     virtual bool handle_dev_exec_action(const std::unordered_map<std::string, std::string> &params,
-                                        std::string &err_string) = 0;
+                                        std::string &err_string, std::string &reply_value) = 0;
 
     virtual bool handle_custom_command(const std::unordered_map<std::string, std::string> &params,
                                        std::string &err_string) = 0;

@@ -679,5 +679,21 @@ bool uri_matches_key(const std::string &uri, const DppEnrolleeKeyStore &store)
     return decode_uri_public_key(uri, der) && store.matches_public_key_der(der);
 }
 
+std::string build_bootstrap_uri(const std::vector<uint8_t> &public_der)
+{
+    if (public_der.empty() || public_der.size() > 1024) {
+        return {};
+    }
+    // EVP_EncodeBlock writes a terminating NUL after the encoded data.
+    std::string key(4 * ((public_der.size() + 2) / 3) + 1, '\0');
+    const int len = EVP_EncodeBlock(reinterpret_cast<unsigned char *>(&key[0]), public_der.data(),
+                                    static_cast<int>(public_der.size()));
+    if (len <= 0) {
+        return {};
+    }
+    key.resize(static_cast<size_t>(len));
+    return "DPP:V:2;K:" + key + ";;";
+}
+
 } // namespace dpp_enrollee
 } // namespace beerocks

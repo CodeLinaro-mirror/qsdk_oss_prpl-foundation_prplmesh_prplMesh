@@ -9,6 +9,7 @@
 #include "agent_ucc_listener.h"
 #include "agent_db.h"
 
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 #include <beerocks/tlvf/beerocks_message.h>
@@ -260,11 +261,41 @@ bool agent_ucc_listener::handle_dev_set_rfeature(
 }
 
 bool agent_ucc_listener::handle_dev_exec_action(
-    const std::unordered_map<std::string, std::string> &params, std::string &err_string)
+    const std::unordered_map<std::string, std::string> &params, std::string &err_string,
+    std::string &reply_value)
 {
-    // Will be implemented as part of PPM-1692 and PPM-1693
-    err_string = "handle_dev_exec_action is not yet implemented in agent mode";
-    return false;
+    auto get_param = [&params](const std::string &key) {
+        auto it = params.find(key);
+        return it != params.end() ? it->second : std::string();
+    };
+
+    // Only GetLocalBootstrap is supported: the test harness reads this Enrollee's DPP URI
+    // and gives it to the Controller (SetPeerBootstrap).
+    const auto action_type = get_param("dppactiontype");
+    if (action_type != "GetLocalBootstrap") {
+        err_string = "DPPActionType '" + action_type + "' is not supported in agent mode";
+        return false;
+    }
+    if (get_param("dppcryptoidentifier") != "P-256") {
+        err_string = "DPPCryptoIdentifier must be 'P-256'";
+        return false;
+    }
+    if (get_param("dppbs") != "URI_String") {
+        err_string = "DPPBS must be 'URI_String'";
+        return false;
+    }
+
+    std::string uri;
+    if (!m_btl_ctx.get_local_bootstrap_uri(uri, err_string)) {
+        return false;
+    }
+    LOG(INFO) << "DPP GetLocalBootstrap uri=" << uri;
+
+    // The URI is returned as the hex of its ASCII bytes.
+    reply_value = "BootstrappingData," +
+                  string_utils::bytes_to_hex_string(reinterpret_cast<const uint8_t *>(uri.data()),
+                                                    uri.size());
+    return true;
 }
 
 bool agent_ucc_listener::handle_custom_command(

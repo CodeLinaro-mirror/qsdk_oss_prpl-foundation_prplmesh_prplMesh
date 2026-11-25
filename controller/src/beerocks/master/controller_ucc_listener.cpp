@@ -156,7 +156,8 @@ bool controller_ucc_listener::handle_dev_set_rfeature(
 }
 
 bool controller_ucc_listener::handle_dev_exec_action(
-    const std::unordered_map<std::string, std::string> &params, std::string &err_string)
+    const std::unordered_map<std::string, std::string> &params, std::string &err_string,
+    std::string &reply_value)
 {
     auto action_type_it = params.find("dppactiontype");
     if (action_type_it != params.end()) {
