@@ -2861,6 +2861,116 @@ bool Controller::handle_cmdu_1905_backhaul_sta_steering_response(const sMacAddr 
     return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
+// IEEE 802.11 reason 12: disassociated due to BSS transition management.
+// Use the same reason when the old AP should release the STA after it has moved.
+static constexpr uint32_t ROAM_DEAUTH_REASON_BSS_TRANSITION = 12;
+
+/**
+ * Tunnel Source Info may carry an affiliated link MAC while the Station is keyed
+ * by its MLD MAC. Resolve link -> STA MLD using existing MLO mapping when present.
+ */
+static sMacAddr resolve_sta_mac_for_reassoc(db &database, const sMacAddr &sta_or_link_mac)
+{
+    if (database.has_station(sta_or_link_mac)) {
+        return sta_or_link_mac;
+    }
+
+    for (const auto &sta_mac_str : database.get_stations()) {
+        auto station = database.get_station(tlvf::mac_from_string(sta_mac_str));
+        if (!station || !station->is_mld) {
+            continue;
+        }
+        for (const auto &affiliated : station->sta_mld_configuration.affiliated_stas) {
+            if (affiliated.affiliated_sta_mac == sta_or_link_mac) {
+                return station->mac;
+            }
+        }
+    }
+
+    return sta_or_link_mac;
+}
+
+/**
+ * Old AP releases the STA as soon as another agent reports its reassoc.
+ * Deauth is sent by the previous BSS, never by the BSS that just accepted the STA.
+ *
+ * get_sta_parent() is the *current* BSS. Prefer get_previous_bss() when the DB has
+ * already moved onto the reporting agent (same idea as handle_completed_connection).
+ * Reject obsolete tunnelled reports from an agent that is already recorded as
+ * previous_bss while the STA lives elsewhere (e.g. delayed REP event after
+ * GW -> REP -> GW).
+ */
+static void deauth_previous_bss_on_reassoc(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                           const sMacAddr &new_agent_mac, const sMacAddr &sta_mac,
+                                           const sMacAddr &frame_current_ap)
+{
+    auto station = database.get_station(sta_mac);
+    if (!station || station->is_bSta()) {
+        return;
+    }
+
+    const auto sta_mac_str = tlvf::mac_to_string(sta_mac);
+    if (!database.is_sta_wireless(sta_mac_str)) {
+        return;
+    }
+
+    const auto current_bssid = database.get_sta_parent(sta_mac_str);
+    auto current_agent       = beerocks::net::network_utils::ZERO_MAC;
+    if (!current_bssid.empty() && current_bssid != beerocks::net::network_utils::ZERO_MAC_STRING) {
+        current_agent = database.get_bss_parent_agent(tlvf::mac_from_string(current_bssid));
+    }
+
+    // Freshness: reporter already recorded as previous BSS and STA is elsewhere
+    // => this tunnelled reassoc is obsolete; do not touch the live session.
+    if (auto left_bss = station->get_previous_bss()) {
+        auto left_agent = database.get_bss_parent_agent(left_bss->bssid);
+        if (left_agent == new_agent_mac && current_agent != new_agent_mac &&
+            current_agent != beerocks::net::network_utils::ZERO_MAC) {
+            LOG(DEBUG) << "ignore obsolete tunnelled reassoc from "
+                       << tlvf::mac_to_string(new_agent_mac) << " for STA " << sta_mac_str;
+            return;
+        }
+    }
+
+    std::string previous_bssid;
+    sMacAddr previous_agent;
+
+    if (current_agent == new_agent_mac) {
+        // DB already moved onto the accepting agent; true previous is m_previous_bss.
+        auto prev_bss = station->get_previous_bss();
+        if (!prev_bss) {
+            return;
+        }
+        previous_bssid = tlvf::mac_to_string(prev_bss->bssid);
+        previous_agent = database.get_bss_parent_agent(prev_bss->bssid);
+    } else {
+        // DB not updated yet; current parent is the BSS being left.
+        previous_bssid = current_bssid;
+        previous_agent = current_agent;
+    }
+
+    // Prefer STA-declared Current AP Address when it names a BSS not on the reporter.
+    if (frame_current_ap != beerocks::net::network_utils::ZERO_MAC) {
+        auto ap_agent = database.get_bss_parent_agent(frame_current_ap);
+        if (ap_agent != beerocks::net::network_utils::ZERO_MAC && ap_agent != new_agent_mac) {
+            previous_bssid = tlvf::mac_to_string(frame_current_ap);
+            previous_agent = ap_agent;
+        }
+    }
+
+    if (previous_bssid.empty() || previous_bssid == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        previous_agent == beerocks::net::network_utils::ZERO_MAC ||
+        previous_agent == new_agent_mac) {
+        return;
+    }
+
+    LOG(INFO) << "roam deauth reason 12: STA " << sta_mac_str << " reassoc via agent "
+              << tlvf::mac_to_string(new_agent_mac) << ", previous BSS " << previous_bssid;
+
+    son_actions::disconnect_client(database, cmdu_tx, sta_mac_str, previous_bssid,
+                                   eDisconnect_Type_Deauth, ROAM_DEAUTH_REASON_BSS_TRANSITION);
+}
+
 bool Controller::handle_cmdu_1905_tunnelled_message(const sMacAddr &src_mac,
                                                     ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -2909,6 +3019,13 @@ bool Controller::handle_cmdu_1905_tunnelled_message(const sMacAddr &src_mac,
             assoc_frame::AssocReqFrame::eFrameType::REASSOCIATION_REQUEST);
         if (!reassoc_frame) {
             LOG(ERROR) << "Failed to parse Reassociation Request frame";
+        } else {
+            auto frame_current_ap = beerocks::net::network_utils::ZERO_MAC;
+            if (auto current_ap = reassoc_frame->getAttr<assoc_frame::cCurrentApAddress>()) {
+                frame_current_ap = current_ap->ap_addr();
+            }
+            const auto sta_mac = resolve_sta_mac_for_reassoc(database, source_info_tlv->mac());
+            deauth_previous_bss_on_reassoc(database, cmdu_tx, src_mac, sta_mac, frame_current_ap);
         }
     }
 
