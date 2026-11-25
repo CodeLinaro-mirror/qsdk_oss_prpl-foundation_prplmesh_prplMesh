@@ -820,14 +820,15 @@ void beerocks_ucc_listener::handle_wfa_ca_command(int fd, const std::string &com
             break;
         }
 
-        if (!handle_dev_exec_action(params, err_string)) {
+        std::string reply_value;
+        if (!handle_dev_exec_action(params, err_string, reply_value)) {
             LOG(ERROR) << err_string;
             reply_ucc(fd, eWfaCaStatus::INVALID, err_string);
             break;
         }
 
         // Send back second reply
-        reply_ucc(fd, eWfaCaStatus::COMPLETE);
+        reply_ucc(fd, eWfaCaStatus::COMPLETE, reply_value);
         break;
     }
     case eWfaCaCommand::CUSTOM_CMD: {

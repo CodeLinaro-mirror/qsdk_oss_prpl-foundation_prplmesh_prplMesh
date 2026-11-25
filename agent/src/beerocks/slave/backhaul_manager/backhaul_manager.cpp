@@ -1859,6 +1859,38 @@ void BackhaulManager::prepare_dpp_enrollee()
 #endif // USE_PRPLMESH_WHM
 }
 
+bool BackhaulManager::get_local_bootstrap_uri(std::string &uri, std::string &err_string)
+{
+#if defined(USE_PRPLMESH_WHM)
+    if (m_dpp_key_io_disabled) {
+        err_string = "DPP key store disabled: persistent key I/O failure";
+        return false;
+    }
+    std::string message;
+    auto key_result = m_dpp_key_store.load_or_create(message);
+    if (!message.empty())
+        LOG(WARNING) << "DPP key store: " << message;
+    if (!dpp_enrollee::is_success(key_result)) {
+        if (key_result == dpp_enrollee::eKeyStoreResult::WRITE_ERROR ||
+            key_result == dpp_enrollee::eKeyStoreResult::INVALID_PATH) {
+            m_dpp_key_io_disabled = true;
+            LOG(ERROR) << "DPP preparation disabled for this process: persistent key I/O failure";
+        }
+        err_string = std::string("DPP key store: ") + dpp_enrollee::to_string(key_result);
+        return false;
+    }
+    uri = dpp_enrollee::build_bootstrap_uri(m_dpp_key_store.public_key_der());
+    if (uri.empty()) {
+        err_string = "failed to build the DPP bootstrap URI";
+        return false;
+    }
+    return true;
+#else
+    err_string = "DPP Enrollee is not supported in this build";
+    return false;
+#endif // USE_PRPLMESH_WHM
+}
+
 bool BackhaulManager::dpp_chirp_holds_wait_wps(std::chrono::steady_clock::time_point expired_at)
 {
 #if defined(USE_PRPLMESH_WHM)

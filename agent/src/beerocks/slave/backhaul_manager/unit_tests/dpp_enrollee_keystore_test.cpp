@@ -497,6 +497,20 @@ TEST_F(DppEnrolleeKeyStoreTest, UriMatchesOwnKeyPaddedUnpaddedAndUrlSafe)
     EXPECT_FALSE(uri_matches_key(kDeviceUri, store));
 }
 
+TEST_F(DppEnrolleeKeyStoreTest, BuildBootstrapUriCarriesOwnKey)
+{
+    DppEnrolleeKeyStore store(m_path);
+    std::string msg;
+    ASSERT_TRUE(is_success(store.load_or_create(msg))) << msg;
+
+    const std::string uri = build_bootstrap_uri(store.public_key_der());
+    EXPECT_EQ(uri, "DPP:V:2;K:" + base64(store.public_key_der()) + ";;");
+    EXPECT_EQ(uri.size(), std::string("DPP:V:2;K:;;").size() + 80u);
+    EXPECT_TRUE(uri_matches_key(uri, store));
+
+    EXPECT_TRUE(build_bootstrap_uri({}).empty());
+}
+
 TEST(DppEnrolleeUriKey, RejectsMalformedUris)
 {
     const std::string &k = kDeviceKey;

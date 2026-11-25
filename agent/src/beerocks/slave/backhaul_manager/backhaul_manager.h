@@ -218,6 +218,18 @@ public:
      */
     bool set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid, bool enable);
 
+    /**
+     * @brief Get the DPP Enrollee bootstrap URI of this agent ("DPP:V:2;K:<key>;;").
+     *
+     * Built from the persistent bootstrap key (created if missing), without the supplicant.
+     * Used by the UCC GetLocalBootstrap action.
+     *
+     * @param[out] uri Bootstrap URI.
+     * @param[out] err_string Error description, set on failure.
+     * @return true on success, false otherwise.
+     */
+    bool get_local_bootstrap_uri(std::string &uri, std::string &err_string);
+
     // Forward declaration
     struct sRadioInfo;
 
