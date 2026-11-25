@@ -1581,9 +1581,9 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                     bool has_matching_op_class = false;
                     for (auto op_class : bss_conf.operating_class) {
                         if (radio_op_classes.find(op_class) != radio_op_classes.end()) {
-                            LOG(DEBUG) << "Found matching operating class: "
-                                       << static_cast<int>(op_class)
-                                       << " for radio: " << affiliated_radio.first;
+                            LOG(DEBUG)
+                                << "Found matching operating class: " << static_cast<int>(op_class)
+                                << " for radio: " << affiliated_radio.first;
                             has_matching_op_class = true;
                             break;
                         }
@@ -1897,8 +1897,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
          oc_idx++) {
         auto oc_tuple = radio_basic_caps->operating_classes_info_list(oc_idx);
         if (std::get<0>(oc_tuple)) {
-            radio->ap_basic_caps_operating_classes.insert(
-                std::get<1>(oc_tuple).operating_class());
+            radio->ap_basic_caps_operating_classes.insert(std::get<1>(oc_tuple).operating_class());
         }
     }
 
