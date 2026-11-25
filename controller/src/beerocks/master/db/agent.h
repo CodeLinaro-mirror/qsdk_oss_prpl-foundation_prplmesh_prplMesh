@@ -221,6 +221,8 @@ public:
         std::string iface_name;
         uint8_t operating_class = 0;
         std::vector<beerocks::WifiChannel> supported_channels;
+        /** Operating classes reported in the AP Radio Basic Capabilities TLV. */
+        std::set<uint8_t> ap_basic_caps_operating_classes;
         bool cac_completed  = false;
         bool supports_24ghz = true;
         bool supports_5ghz  = true;

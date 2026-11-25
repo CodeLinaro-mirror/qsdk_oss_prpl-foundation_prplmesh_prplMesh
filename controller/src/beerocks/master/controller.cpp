@@ -1549,8 +1549,10 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                    << "[ EMLSR: " << mld.second.emlsr << "]\n"
                    << "[ EMLMR: " << mld.second.emlmr << "]";
 
-        // Look for radios of the agent matching with the frequency of a bss configuration
-        // that is linked to a MLD through a valid MLDID
+        // Match each BSS config to a radio using operating class numbers, not frequency band.
+        // On quadband devices, the 5GHz Low (5GL) and 5GHz High (5GH) radios both report
+        // the same frequency band (FREQ_5G), so band-based matching cannot tell them apart.
+        // Operating classes are unique per sub-band: 5GL uses classes 115-120, 5GH uses 121-130.
         for (const auto &bss_conf : bss_configuration) {
             if (bss_conf.operating_class.empty()) {
                 LOG(ERROR) << "Empty operating_class in bss configuration";
@@ -1565,20 +1567,28 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                         continue;
                     }
 
-                    const auto op_classes = son::wireless_utils::get_operating_classes_of_freq_type(
-                        affiliated_radio.second->band);
-                    if (op_classes.size() == 0) {
+                    // Check if this radio supports any of the operating classes listed in the BSS config.
+                    // This correctly maps 5GL BSS configs to 5GL radios and 5GH BSS configs to 5GH radios,
+                    // which was not possible with the old frequency band (FREQ_5G) comparison.
+                    const auto &radio_op_classes =
+                        affiliated_radio.second->ap_basic_caps_operating_classes;
+                    if (radio_op_classes.empty()) {
+                        LOG(WARNING) << "Radio " << affiliated_radio.first
+                                     << " has no operating classes, skipping";
                         continue;
                     }
 
-                    const bool radio_band_found =
-                        std::any_of(bss_conf.operating_class.begin(),
-                                    bss_conf.operating_class.end(), [&](int v) {
-                                        return std::find(op_classes.begin(), op_classes.end(), v) !=
-                                               op_classes.end();
-                                    });
+                    bool has_matching_op_class = false;
+                    for (auto op_class : bss_conf.operating_class) {
+                        if (radio_op_classes.find(op_class) != radio_op_classes.end()) {
+                            LOG(DEBUG) << "Found matching operating class: "
+                                       << static_cast<int>(op_class)
+                                       << " for radio: " << affiliated_radio.first;
+                            has_matching_op_class = true;
+                            break;
+                        }
+                    }
 
-                    // Check if bss conf freq matches radio freq and EHT is supported
                     // add radio if any incoming MLD Mode matches with any radio capability
                     const auto &mld_conf = mld_configuration.at(bss_conf.mld_id);
                     const auto &mld_cap  = affiliated_radio.second->wifi7_capabilities.ap_role;
@@ -1587,7 +1597,7 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                                            (mld_conf.emlsr && mld_cap.emlsr_support) ||
                                            (mld_conf.emlmr && mld_cap.emlmr_support);
 
-                    if (!radio_band_found || !affiliated_radio.second->eht_supported ||
+                    if (!has_matching_op_class || !affiliated_radio.second->eht_supported ||
                         !any_match) {
                         continue;
                     }
@@ -1879,6 +1889,17 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
         // TODO: MLD Modes are not filled by Agent/bwl (PPM-3595)
         radio->eht_supported = true;
+    }
+
+    // Store the operating classes of each radio so that they can be used for operating class comparison.
+    radio->ap_basic_caps_operating_classes.clear();
+    for (int oc_idx = 0; oc_idx < radio_basic_caps->operating_classes_info_list_length();
+         oc_idx++) {
+        auto oc_tuple = radio_basic_caps->operating_classes_info_list(oc_idx);
+        if (std::get<0>(oc_tuple)) {
+            radio->ap_basic_caps_operating_classes.insert(
+                std::get<1>(oc_tuple).operating_class());
+        }
     }
 
     if (agent->max_num_mlds != 0 && radio->eht_supported) {
