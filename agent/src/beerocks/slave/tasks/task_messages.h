@@ -97,6 +97,11 @@ struct sSwitchChannelRequest {
     // A channel-change notification can precede CAC. In this case only CAC completion
     // finishes the request. Channels already cleared for use do not require another CAC.
     bool wait_for_cac = false;
+
+    // Hostapd may swap primary/secondary for a 5 GHz HT40 CAC. In that case the
+    // event must still describe the same 40 MHz block, not just an adjacent channel.
+    bool matches_cac_started(const sCacStartedNotification &notification) const;
+    bool matches_cac_completed(const sCacCompletedNotification &notification) const;
 };
 std::ostream &operator<<(std::ostream &os, const sSwitchChannelRequest &switch_channel_request);
 

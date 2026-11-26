@@ -8,9 +8,28 @@
 
 #include "task_messages.h"
 #include <bcl/beerocks_utils.h>
+#include <bcl/son/son_wireless_utils.h>
 #include <beerocks/tlvf/beerocks_message.h>
 
 namespace beerocks {
+
+namespace {
+// Return the centre only when the event primary is the other half of the requested HT40 block.
+uint16_t swapped_cac_center_frequency(const sSwitchChannelRequest &request, uint8_t primary)
+{
+    if (request.freq_type != eFreqType::FREQ_5G || request.bandwidth != BANDWIDTH_40) {
+        return 0;
+    }
+    auto center = son::wireless_utils::get_vht_central_frequency(request.channel, request.bandwidth,
+                                                                 request.freq_type);
+    auto requested_freq = son::wireless_utils::channel_to_freq(request.channel, request.freq_type);
+    auto primary_freq   = son::wireless_utils::channel_to_freq(primary, request.freq_type);
+    if (center && requested_freq != primary_freq && requested_freq + primary_freq == 2 * center) {
+        return center;
+    }
+    return 0;
+}
+} // namespace
 
 // switch channel request //
 
@@ -23,6 +42,44 @@ sSwitchChannelRequest::sSwitchChannelRequest(const sSwitchChannelRequest &rhs)
     : ifname(rhs.ifname), channel(rhs.channel), freq_type(rhs.freq_type), bandwidth(rhs.bandwidth),
       wait_for_cac(rhs.wait_for_cac)
 {
+}
+
+bool sSwitchChannelRequest::matches_cac_started(const sCacStartedNotification &notification) const
+{
+    if (notification.ifname != ifname) {
+        return false;
+    }
+    const auto &params = notification.cac_started_params;
+    if (params.channel == channel) {
+        return true;
+    }
+    auto center = swapped_cac_center_frequency(*this, params.channel);
+    // WHM decodes hostapd's width=0 (20/40 MHz) as 20 MHz. The secondary offset
+    // distinguishes a real HT40 CAC from a 20 MHz CAC on only half the block.
+    if (!center || (params.bandwidth != BANDWIDTH_20 && params.bandwidth != BANDWIDTH_40)) {
+        return false;
+    }
+    int offset = params.secondary_channel == 1
+                     ? 1
+                     : params.secondary_channel == static_cast<uint8_t>(-1) ? -1 : 0;
+    return offset &&
+           son::wireless_utils::channel_to_freq(params.channel, freq_type) + offset * 10 == center;
+}
+
+bool sSwitchChannelRequest::matches_cac_completed(
+    const sCacCompletedNotification &notification) const
+{
+    if (notification.ifname != ifname) {
+        return false;
+    }
+    const auto &params = notification.cac_completed_params;
+    if (params.channel == channel) {
+        return true;
+    }
+    auto center = swapped_cac_center_frequency(*this, params.channel);
+    return center && params.bandwidth == BANDWIDTH_40 && params.center_frequency1 == center &&
+           params.center_frequency2 == 0 &&
+           params.frequency == son::wireless_utils::channel_to_freq(params.channel, freq_type);
 }
 
 std::ostream &operator<<(std::ostream &os, const sSwitchChannelRequest &switch_channel_request)

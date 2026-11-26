@@ -93,7 +93,7 @@ protected:
         }
     }
 
-    void request(bool return_previous = true)
+    void request(bool return_previous = true, uint8_t channel = 64)
     {
         auto msg = std::make_shared<wfa_map::tlvProfile2CacRequest>(input.data(), input.size());
         ASSERT_TRUE(msg->alloc_cac_radios(1));
@@ -101,8 +101,8 @@ protected:
         ASSERT_TRUE(std::get<0>(entry));
         auto &radio                           = std::get<1>(entry);
         radio.radio_uid                       = tlvf::mac_from_string("02:00:00:00:00:01");
-        radio.operating_class                 = 120;
-        radio.channel                         = 64;
+        radio.operating_class                 = channel == 60 ? 119 : 120;
+        radio.channel                         = channel;
         radio.cac_method_bit_field.cac_method = wfa_map::eCacMethod::CONTINUOUS_CAC;
         radio.cac_method_bit_field.cac_completion_action =
             return_previous ? wfa_map::tlvProfile2CacRequest::RETURN_PREVIOUS_CHANNEL
@@ -122,25 +122,31 @@ protected:
         drain();
     }
 
-    void started(uint16_t duration = 60, uint8_t channel = 64, std::string ifname = "wlan1")
+    void started(uint16_t duration = 60, uint8_t channel = 64, std::string ifname = "wlan1",
+                 uint8_t secondary_offset = static_cast<uint8_t>(-1))
     {
         auto msg                        = std::make_shared<sCacStartedNotification>();
         msg->ifname                     = ifname;
         msg->cac_started_params.channel = channel;
         // WHM currently decodes width=0 as 20 MHz even for a 40 MHz CAC.
-        msg->cac_started_params.bandwidth        = BANDWIDTH_20;
-        msg->cac_started_params.cac_duration_sec = duration;
+        msg->cac_started_params.bandwidth         = BANDWIDTH_20;
+        msg->cac_started_params.secondary_channel = secondary_offset;
+        msg->cac_started_params.cac_duration_sec  = duration;
         switch_fsm->fire(sw::fsm_event::CAC_STARTED, &msg);
         drain();
     }
 
-    void completed(bool success = true, uint8_t channel = 64, std::string ifname = "wlan1")
+    void completed(bool success = true, uint8_t channel = 64, std::string ifname = "wlan1",
+                   eWiFiBandwidth bandwidth = BANDWIDTH_20, uint16_t center_frequency = 5310)
     {
         auto msg                            = std::make_shared<sCacCompletedNotification>();
         msg->ifname                         = ifname;
         msg->cac_completed_params.channel   = channel;
-        msg->cac_completed_params.bandwidth = BANDWIDTH_20;
-        msg->cac_completed_params.success   = success;
+        msg->cac_completed_params.bandwidth = bandwidth;
+        msg->cac_completed_params.frequency =
+            son::wireless_utils::channel_to_freq(channel, eFreqType::FREQ_5G);
+        msg->cac_completed_params.center_frequency1 = center_frequency;
+        msg->cac_completed_params.success           = success;
         switch_fsm->fire(sw::fsm_event::CAC_COMPLETED, &msg);
         drain();
     }
@@ -172,10 +178,10 @@ protected:
         drain();
     }
 
-    void expect_restoring(eWiFiBandwidth bandwidth = BANDWIDTH_40)
+    void expect_restoring(eWiFiBandwidth bandwidth = BANDWIDTH_40, uint8_t channel = 36)
     {
         ASSERT_EQ(requests.size(), 2U);
-        EXPECT_EQ(requests.back()->channel, 36);
+        EXPECT_EQ(requests.back()->channel, channel);
         EXPECT_EQ(requests.back()->bandwidth, bandwidth);
         EXPECT_FALSE(requests.back()->wait_for_cac);
         EXPECT_EQ(cac_fsm->state(),
@@ -215,6 +221,120 @@ TEST_F(CoordinatedCacLifecycle, OspDelayedStartAndCsaBeforeStart)
     EXPECT_TRUE(reports.front()->cac_happened);
     csa(36);
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, HostapdPrimarySecondarySwapRestoresLowBandChannel)
+{
+    request();
+    tick(seconds(4));
+    csa(60); // The channel change precedes CAC-START in the OSPv2 logs.
+    EXPECT_TRUE(reports.empty());
+    started(60, 60, "wlan1", 1);
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
+    ASSERT_EQ(waits.size(), 1U);
+    tick(seconds(62)); // Completion is well beyond the initial 15-second deadline.
+    EXPECT_TRUE(reports.empty());
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    expect_restoring();
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports.front()->original_request->channel, 64);
+    EXPECT_EQ(reports.front()->cac_completed_notification->cac_completed_params.channel, 60);
+    csa(40); // The original channel's secondary cannot acknowledge restoration.
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_BACK_TO_ORIGINAL_CHANNEL_REPORT);
+    csa(36);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, HostapdPrimarySecondarySwapRestoresHighBandChannel)
+{
+    AgentDB::get()->radio("wlan1")->wifi_channel =
+        WifiChannel(149, eFreqType::FREQ_5G, BANDWIDTH_20);
+    request();
+    csa(60);
+    started(60, 60, "wlan1", 1);
+    tick(seconds(62));
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    expect_restoring(BANDWIDTH_20, 149);
+    csa(149, BANDWIDTH_40);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_BACK_TO_ORIGINAL_CHANNEL_REPORT);
+    csa(149, BANDWIDTH_20);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, HostapdPrimarySecondarySwapInReverseDirection)
+{
+    request(true, 60);
+    started(); // Primary 64, secondary offset -1 (encoded as uint8_t).
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
+    completed(true, 64, "wlan1", BANDWIDTH_40);
+    expect_restoring();
+    csa(36);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, SwappedCompletionCanRecoverMissingStart)
+{
+    request();
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    expect_restoring();
+}
+
+TEST_F(CoordinatedCacLifecycle, SwappedCacRequiresTheSameFrequencyBlock)
+{
+    request();
+    started(60, 60, "wlan1", 0); // Only 20 MHz.
+    started(60, 60);             // Wrong secondary direction: 60 + 56.
+    started(60, 56, "wlan1", 1); // Adjacent but different block: 56 + 60.
+    started(60, 60, "wlan2", 1);
+    EXPECT_TRUE(waits.empty());
+    completed(true, 60); // Only 20 MHz cannot clear the requested 40 MHz block.
+    completed(true, 60, "wlan1", BANDWIDTH_80);
+    completed(true, 60, "wlan1", BANDWIDTH_40, 5290);
+    completed(true, 56, "wlan1", BANDWIDTH_40);
+    completed(true, 60, "wlan2", BANDWIDTH_40);
+    EXPECT_TRUE(reports.empty());
+    started(60, 60, "wlan1", 1);
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    expect_restoring();
+}
+
+TEST_F(CoordinatedCacLifecycle, SwappedCompletionRejectsInconsistentPrimaryFrequency)
+{
+    request();
+    auto msg                                    = std::make_shared<sCacCompletedNotification>();
+    msg->ifname                                 = "wlan1";
+    msg->cac_completed_params.channel           = 60;
+    msg->cac_completed_params.frequency         = 5320; // Channel 64, not 60.
+    msg->cac_completed_params.center_frequency1 = 5310;
+    msg->cac_completed_params.bandwidth         = BANDWIDTH_40;
+    msg->cac_completed_params.success           = 1;
+    switch_fsm->fire(sw::fsm_event::CAC_COMPLETED, &msg);
+    drain();
+    EXPECT_TRUE(reports.empty());
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    expect_restoring();
+}
+
+TEST_F(CoordinatedCacLifecycle, SwappedCacFailureDoesNotClaimSuccess)
+{
+    request();
+    started(60, 60, "wlan1", 1);
+    completed(false, 60, "wlan1", BANDWIDTH_40);
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports.front()->compute_switch_channel_report_status(),
+              eSwitchChannelReportStatus::CAC_FAILED);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::ERROR);
+    EXPECT_EQ(requests.size(), 1U);
+}
+
+TEST_F(CoordinatedCacLifecycle, RemainOnSwappedChannelFinishesAfterCacCompletion)
+{
+    request(false);
+    started(60, 60, "wlan1", 1);
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+    EXPECT_EQ(requests.size(), 1U);
 }
 
 TEST_F(CoordinatedCacLifecycle, CsaDuringCacAndDuplicatesDoNotFinishCac)

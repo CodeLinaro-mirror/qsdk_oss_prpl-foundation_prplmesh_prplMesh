@@ -104,8 +104,8 @@ void SwitchChannelFsm::config_fsm()
             [&](TTransition &, const void *args) {
                 auto notification =
                     *static_cast<const std::shared_ptr<sCacStartedNotification> *>(args);
-                if (!notification || notification->ifname != m_ifname ||
-                    notification->cac_started_params.channel != m_switch_channel_request->channel) {
+                if (!notification ||
+                    !m_switch_channel_request->matches_cac_started(*notification)) {
                     return false;
                 }
                 m_cac_started_notification = notification;
@@ -196,11 +196,9 @@ bool SwitchChannelFsm::handle_csa(TTransition &, const void *args)
 
 bool SwitchChannelFsm::handle_cac_completed(TTransition &, const void *args)
 {
-    // Match the radio and primary channel. WHM's hostapd width decoding is currently
-    // inconsistent with CSA bandwidths, so a bandwidth equality check would drop valid CACs.
+    // Match the request, including hostapd's primary/secondary swap for HT40 CACs.
     auto notification = *static_cast<const std::shared_ptr<sCacCompletedNotification> *>(args);
-    if (!notification || notification->ifname != m_ifname ||
-        notification->cac_completed_params.channel != m_switch_channel_request->channel ||
+    if (!notification || !m_switch_channel_request->matches_cac_completed(*notification) ||
         (!m_switch_channel_request->wait_for_cac && !m_cac_started_notification)) {
         return false;
     }

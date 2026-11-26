@@ -592,8 +592,7 @@ bool CacFsm::report_succeeded(const sSwitchChannelReport &report) const
     const auto &request = *m_active_switch_channel_request;
     if (request.wait_for_cac || report.cac_happened) {
         const auto &completed = report.cac_completed_notification;
-        return report.cac_happened && completed && completed->ifname == request.ifname &&
-               completed->cac_completed_params.channel == request.channel &&
+        return report.cac_happened && completed && request.matches_cac_completed(*completed) &&
                completed->cac_completed_params.success == 1;
     }
     const auto &switched = report.switch_channel_notification;
