@@ -48,6 +48,9 @@ ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPA
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
 # Remove wireless backhual credentials before enable wired backhual, if previous test used wifi backhaul (PPM-4118)
 ba-cli "WiFi.EndPoint.*.Profile.*.-"
+# Lab: enable DPP enrollee on the bSTA EndPoints (pWHM !488; DPP.Enable has no default)
+ba-cli "WiFi.EndPoint.*.DPP.Role=Enrollee" || true
+ba-cli "WiFi.EndPoint.*.DPP.Enable=1" || true
 ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=1"

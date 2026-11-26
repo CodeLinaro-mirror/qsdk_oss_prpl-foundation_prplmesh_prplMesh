@@ -23,6 +23,17 @@ run_make() {
     fi
 }
 
+# Lab: rebuild pWHM from the git checkout prepared by ../build.sh (PWHM_GIT_REF).
+pwhm_src=/home/openwrt/prplMesh_source/build/pwhm-src
+if [ -f "$pwhm_src/.lab_pwhm_rev" ] ; then
+    rsync -rl --exclude=/.git/ "$pwhm_src/" /home/openwrt/pwhm/
+    make package/pwhm/clean
+    make package/pwhm/prepare USE_SOURCE_DIR="/home/openwrt/pwhm" V=s
+    run_make package/pwhm/compile NO_DEPS=1
+    # Change /etc/prplwrt-version so tools/deploy_firmware.py reflashes the device.
+    echo "PWHM_GIT_REV=$(cat "$pwhm_src/.lab_pwhm_rev")" >> files/etc/prplwrt-version
+fi
+
 # Rebuild prplMesh without rebuilding dependencies
 # Repackage the image with the new prplMesh ipk
 run_make package/prplmesh/compile NO_DEPS=1

@@ -66,6 +66,21 @@ build_prplmesh() {
         interactive="-i"
     fi
     dbg "Container name will be $container_name"
+    # Lab: fetch pWHM (PWHM_GIT_REF) so scripts/build.sh rebuilds it instead
+    # of the prplOS feed version. build/ is visible in the container through
+    # the read-only prplMesh_source mount (and excluded from the prplMesh copy).
+    local pwhm_src="${rootdir}/build/pwhm-src"
+    if [ -n "$PWHM_GIT_REF" ] ; then
+        dbg "Fetching pWHM $PWHM_GIT_REF from $PWHM_GIT_URL"
+        git init --quiet "$pwhm_src" || exit 1
+        git -C "$pwhm_src" fetch --quiet --depth 1 "$PWHM_GIT_URL" "$PWHM_GIT_REF" || exit 1
+        git -C "$pwhm_src" checkout --quiet --force FETCH_HEAD || exit 1
+        git -C "$pwhm_src" clean --quiet -ffdx || exit 1
+        git -C "$pwhm_src" rev-parse HEAD > "$pwhm_src/.lab_pwhm_rev" || exit 1
+        dbg "pWHM revision: $(cat "$pwhm_src/.lab_pwhm_rev")"
+    else
+        rm -f "$pwhm_src/.lab_pwhm_rev"
+    fi
     trap 'docker rm -f $container_name' EXIT
     docker run "$interactive" \
            --name "$container_name" \
@@ -237,6 +252,10 @@ CACHE_DIR="${rootdir}/build"
 PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-11-24
 PRPLOS_VERSION='af8c7847bc8db616cd7dcf3abbb53728776b1794'
+# Lab: pWHM git ref built into the image instead of the prplOS feed pWHM
+# (pWHM !419 + !488 DPP support). Set PWHM_GIT_REF="" to use the feed pWHM.
+PWHM_GIT_URL="${PWHM_GIT_URL:-https://gitlab.com/prpl-foundation/prplmesh/pwhm/plugins/pwhm.git}"
+PWHM_GIT_REF="${PWHM_GIT_REF-dev-PPM-4328}"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
