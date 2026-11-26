@@ -13,8 +13,6 @@
 #include <bwl/ap_wlan_hal.h>
 
 #include <chrono>
-#include <deque>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace bwl {
@@ -270,22 +268,6 @@ private:
                                      beerocks::wbapi::AmbiorixVariant *value) override;
 
     std::unordered_set<std::string> m_unassociated_stations;
-
-    struct sUnAssocStaInfo {
-        int channel  = 0;
-        uint8_t rcpi = 0;
-        std::chrono::steady_clock::time_point m_unassoc_sta_metrics_start;
-    };
-
-    // One completed NaStaMonitor measurement. The controller sends one query per
-    // operating class, and several classes share a radio, so results are queued
-    // until each STA_Unassoc_Link_Metrics event is turned into a response.
-    struct sUnassocLinkMetricsResult {
-        uint8_t opclass = 0;
-        std::unordered_map<std::string, sUnAssocStaInfo> stations;
-    };
-
-    std::deque<sUnassocLinkMetricsResult> m_unassoc_link_metrics_results;
 
     /**
      * @brief Process event "wpaCtrlEvents"
