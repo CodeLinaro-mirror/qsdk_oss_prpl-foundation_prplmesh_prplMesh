@@ -1,0 +1,66 @@
+@startuml
+title QoS Management Enable Settings Paths
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "NBAPI caller" as Caller
+actor "WFA-CA UCC" as UCC
+participant "BSS.SetQoSManagement()" as NBAPI
+participant "controller::db" as CDB
+participant "agent_monitoring_task" as AMT
+participant "cACTION_CONTROL_BSS_SET_\nQOS_MANAGEMENT_REQUEST" as VSCTRL
+participant "BackhaulManager" as BHM
+participant "son_slave_thread" as SST
+participant "cACTION_APMANAGER_BSS_SET_\nQOS_MANAGEMENT_REQUEST" as VSAPM
+participant "AP manager" as APM
+participant "ap_wlan_hal_whm" as WHM
+participant "QoS Management\nobject" as QOS_MGMT
+
+Caller -> NBAPI : SetQoSManagement(\nQosMapEnable,\nMSCSEnable,\nSCSEnable,\nDSCPPolicyEnable,\nSCSTrafficDescriptionEnable)
+NBAPI -> CDB : validate BSSID scope
+NBAPI -> CDB : update BSS.SetQoSManagementInput.\npreserving omitted values
+NBAPI -> AMT : CONFIGURE_QOS
+AMT -> CDB : get BSS QoS settings owned by this agent
+AMT -> VSCTRL : send per-BSS settings message\nBSSID + MSCSEnable + SCSEnable
+VSCTRL -> SST : controller-owned settings request
+SST -> VSAPM : create AP-manager request
+VSAPM -> APM : deliver settings
+APM -> WHM : set_qos_management_settings(BSSID,\nMSCSEnable, SCSEnable)
+WHM -> QOS_MGMT : update_object() on AP path
+
+== Certification dev_set_config path ==
+
+UCC -> BHM : dev_set_config(mscs=enable|disable,\nscs=enable|disable[, backhaul=...])
+BHM -> BHM : parse and store pending settings
+alt agent socket connected
+  loop for known radios
+    BHM -> VSCTRL : send radio-scoped settings\nzero BSSID + radio_mac
+    VSCTRL -> SST : local control request
+    SST -> VSAPM : create AP-manager request
+    VSAPM -> APM : deliver settings
+    APM -> APM : zero BSSID means\ncache pending settings and\napply to current fronthaul VAPs
+    APM -> WHM : set_qos_management_settings(each fronthaul BSSID,\nMSCSEnable, SCSEnable)
+    WHM -> QOS_MGMT : update_object() on AP path
+  end
+else agent socket not connected
+  BHM -> BHM : defer until AP enable flow
+end
+
+APM -> APM : on later AP_ENABLED,\napply cached settings to new fronthaul VAP
+
+note right of VSCTRL
+VS path carries only BSS enable settings.
+Descriptor and policy use standard TLVs.
+end note
+
+note right of QOS_MGMT
+Controller state persists even if the
+backend does not support apply.
+
+Accepted today: MSCSEnable / SCSEnable.
+Other SetQoSManagement inputs are rejected.
+dev_set_config uses the same AP-manager path.
+end note
+
+@enduml

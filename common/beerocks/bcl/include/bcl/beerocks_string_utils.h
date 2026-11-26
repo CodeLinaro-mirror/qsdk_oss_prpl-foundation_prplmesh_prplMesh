@@ -117,6 +117,15 @@ public:
                                          const uint8_t number_of_digits);
 
     /**
+     * @brief Convert a byte array to a hexadecimal string.
+     *
+     * @param [in] data Pointer to the byte array.
+     * @param [in] length Number of bytes to convert.
+     * @return std::string Hexadecimal representation of the input bytes.
+     */
+    static std::string bytes_to_hex_string(const uint8_t *data, size_t length);
+
+    /**
      * @brief Convert bytes string to a string, e.g. "7072706c4d657368" -> "prplMesh".
      * 
      * @param byte_string Bytes string.

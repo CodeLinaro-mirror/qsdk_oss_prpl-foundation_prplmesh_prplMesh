@@ -10,6 +10,7 @@
 
 #include <bwl/base_wlan_hal_types.h>
 
+#include <bcl/beerocks_qos_utils.h>
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
@@ -34,6 +35,8 @@
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
+#include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
+#include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvTriggerChannelSwitchAnnouncement.h>
 #include <tlvf/wfa_map/tlvTunnelledData.h>
@@ -508,6 +511,53 @@ bool ApManager::stop()
 bool ApManager::send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
     return m_slave_client->send_cmdu(cmdu_tx);
+}
+
+bool ApManager::apply_qos_management_settings(const sMacAddr &bssid, bool mscs_enable,
+                                              bool scs_enable)
+{
+    if (!ap_wlan_hal->supports_qos_management()) {
+        LOG(WARNING) << "Ignoring QoS management settings request on unsupported backend";
+        return true;
+    }
+
+    if (!ap_wlan_hal->set_qos_management_settings(bssid, mscs_enable, scs_enable)) {
+        LOG(ERROR) << "set_qos_management_settings failed for BSSID " << bssid;
+        return false;
+    }
+
+    return true;
+}
+
+bool ApManager::apply_qos_management_settings_to_fronthaul_vaps(bool mscs_enable, bool scs_enable)
+{
+    if (!ap_wlan_hal->supports_qos_management()) {
+        LOG(WARNING) << "Ignoring QoS management settings request on unsupported backend";
+        return true;
+    }
+
+    if (!ap_wlan_hal->refresh_vaps_info()) {
+        LOG(ERROR) << "Failed to refresh VAPs before applying QoS management settings";
+        return false;
+    }
+
+    for (const auto &vap_entry : ap_wlan_hal->get_radio_info().available_vaps) {
+        const auto &vap_info = vap_entry.second;
+        if (!vap_info.fronthaul || !net::network_utils::is_valid_mac(vap_info.mac)) {
+            continue;
+        }
+
+        const auto bssid = tlvf::mac_from_string(vap_info.mac);
+        if (bssid == beerocks::net::network_utils::ZERO_MAC) {
+            continue;
+        }
+
+        if (!apply_qos_management_settings(bssid, mscs_enable, scs_enable)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool ApManager::ap_manager_fsm(bool &continue_processing)
@@ -2253,6 +2303,151 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST: {
+        auto msg =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>();
+        if (!msg) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+        // Unsupported backends handle this valid request as a no-op.
+        if (!ap_wlan_hal->supports_qos_management()) {
+            LOG(WARNING) << "Ignoring QoS management descriptor request on unsupported backend";
+            return;
+        }
+
+        auto descriptor_tlvs = cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>();
+        if (descriptor_tlvs.empty()) {
+            LOG(ERROR) << "No tlvQoSManagementDescriptor found";
+            return;
+        }
+
+        for (const auto &descriptor_tlv : descriptor_tlvs) {
+            if (!descriptor_tlv) {
+                LOG(ERROR) << "Received null tlvQoSManagementDescriptor";
+                return;
+            }
+
+            std::vector<uint8_t> descriptor_element;
+            auto descriptor_len = descriptor_tlv->descriptor_element_length();
+            if (descriptor_len > 0) {
+                auto descriptor = descriptor_tlv->descriptor_element();
+                if (!descriptor) {
+                    LOG(ERROR) << "Descriptor element pointer is null";
+                    return;
+                }
+                descriptor_element.assign(descriptor, descriptor + descriptor_len);
+            }
+
+            const auto descriptor_info =
+                qos_management::parse_qos_management_descriptor_element(descriptor_element);
+            if (!descriptor_info.is_valid()) {
+                LOG(ERROR) << "Ignoring QoS management descriptor with invalid element "
+                           << "for BSSID " << descriptor_tlv->bssid() << ", client "
+                           << descriptor_tlv->client_mac();
+                return;
+            }
+
+            if (!ap_wlan_hal->handle_qos_management_descriptor(
+                    descriptor_tlv->bssid(), descriptor_tlv->qmid(), descriptor_tlv->client_mac(),
+                    descriptor_element)) {
+                LOG(ERROR) << "handle_qos_management_descriptor failed for BSSID "
+                           << descriptor_tlv->bssid() << ", client "
+                           << descriptor_tlv->client_mac();
+                return;
+            }
+        }
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST: {
+        auto msg =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST>();
+        if (!msg) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+        // Unsupported backends handle this valid request as a no-op.
+        if (!ap_wlan_hal->supports_qos_management()) {
+            LOG(WARNING) << "Ignoring QoS management policy request on unsupported backend";
+            return;
+        }
+
+        auto qos_policy_tlv = cmdu_rx.getClass<wfa_map::tlvQoSManagementPolicy>();
+        if (!qos_policy_tlv) {
+            LOG(ERROR) << "No tlvQoSManagementPolicy found";
+            return;
+        }
+
+        std::vector<sMacAddr> mscs_disallowed_stas;
+        std::vector<sMacAddr> scs_disallowed_stas;
+
+        for (size_t i = 0; i < qos_policy_tlv->mscs_disallowed_sta_length(); ++i) {
+            auto tuple = qos_policy_tlv->mscs_disallowed_sta_list(i);
+            if (!std::get<0>(tuple)) {
+                LOG(ERROR) << "Failed to get mscs_disallowed_sta[" << i << "]";
+                return;
+            }
+            mscs_disallowed_stas.push_back(std::get<1>(tuple));
+        }
+
+        for (size_t i = 0; i < qos_policy_tlv->scs_disallowed_sta_length(); ++i) {
+            auto tuple = qos_policy_tlv->scs_disallowed_sta_list(i);
+            if (!std::get<0>(tuple)) {
+                LOG(ERROR) << "Failed to get scs_disallowed_sta[" << i << "]";
+                return;
+            }
+            scs_disallowed_stas.push_back(std::get<1>(tuple));
+        }
+
+        for (const auto &vap_entry : ap_wlan_hal->get_radio_info().available_vaps) {
+            const auto &vap_info = vap_entry.second;
+            if (!net::network_utils::is_valid_mac(vap_info.mac)) {
+                continue;
+            }
+
+            const auto bssid = tlvf::mac_from_string(vap_info.mac);
+            if (!ap_wlan_hal->set_mscs_disallowed_sta_list(bssid, mscs_disallowed_stas)) {
+                LOG(ERROR) << "set_mscs_disallowed_sta_list failed for BSSID " << bssid;
+                return;
+            }
+            if (!ap_wlan_hal->set_scs_disallowed_sta_list(bssid, scs_disallowed_stas)) {
+                LOG(ERROR) << "set_scs_disallowed_sta_list failed for BSSID " << bssid;
+                return;
+            }
+        }
+
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST: {
+        auto msg =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST>();
+        if (!msg) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+
+        if (msg->bssid() == beerocks::net::network_utils::ZERO_MAC) {
+            m_pending_qos_management_settings.valid       = true;
+            m_pending_qos_management_settings.mscs_enable = msg->mscs_enable();
+            m_pending_qos_management_settings.scs_enable  = msg->scs_enable();
+
+            if (!apply_qos_management_settings_to_fronthaul_vaps(msg->mscs_enable(),
+                                                                 msg->scs_enable())) {
+                LOG(ERROR) << "Failed applying QoS management settings to fronthaul VAPs";
+                return;
+            }
+            break;
+        }
+
+        if (!apply_qos_management_settings(msg->bssid(), msg->mscs_enable(), msg->scs_enable())) {
+            return;
+        }
+
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST: {
         LOG(DEBUG) << "Received ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST";
 
@@ -3073,6 +3268,197 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             }
 
             return true;
+        } else if (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST ||
+                   mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST) {
+            constexpr size_t qos_management_descriptor_offset       = 3;
+            constexpr size_t qos_management_descriptor_header_size  = 2;
+            constexpr size_t minimum_qos_management_descriptor_size = 4;
+
+            const bool is_scs_request =
+                (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST);
+            const bool is_mscs_request =
+                mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST;
+            const auto &radio_info = ap_wlan_hal->get_radio_info();
+
+            if ((is_scs_request && !radio_info.scs_supported) ||
+                (is_mscs_request && !radio_info.mscs_supported)) {
+                LOG(WARNING) << "Ignoring " << (is_scs_request ? "SCS" : "MSCS")
+                             << " request on radio without advertised support";
+                return true;
+            }
+
+            LOG(DEBUG) << "Received SCS|MSCS request from " << mgmt_frame->mac;
+
+            auto cmdu_tx_header = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>(cmdu_tx);
+            if (!cmdu_tx_header) {
+                LOG(ERROR) << "cmdu creation of type QOS_MANAGEMENT_NOTIFICATION_MESSAGE failed!";
+                return false;
+            }
+
+            bool has_qos_management_descriptor = false;
+            if (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST) {
+                if (mgmt_frame->data.size() < qos_management_descriptor_offset) {
+                    LOG(ERROR) << "Malformed SCS request: missing fixed fields";
+                    return true;
+                }
+
+                // SCS Descriptor element (as described in 9.4.2.121 of IEEE 802.11-2020)
+                const std::vector<uint8_t> scs_descriptor_element_list(
+                    mgmt_frame->data.begin() + qos_management_descriptor_offset,
+                    mgmt_frame->data.end());
+                size_t offset              = 0;
+                bool malformed_scs_request = false;
+                while (offset + qos_management_descriptor_header_size <=
+                       scs_descriptor_element_list.size()) {
+                    const auto element_id = scs_descriptor_element_list[offset];
+
+                    // The Length field indicates the number of octets in the element
+                    // excluding the Element ID and Length fields (as described in 9.4.2.1 of IEEE 802.11-2020)
+                    const auto length = scs_descriptor_element_list[offset + 1];
+                    const size_t descriptor_len =
+                        static_cast<size_t>(length) + qos_management_descriptor_header_size;
+
+                    if (element_id != qos_management::scs_descriptor_element_id) {
+                        LOG(ERROR) << "Malformed descriptor: invalid element ID " << element_id;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    if (offset + descriptor_len > scs_descriptor_element_list.size()) {
+                        LOG(ERROR) << "Malformed descriptor: exceeds buffer at offset " << offset;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    if (descriptor_len < minimum_qos_management_descriptor_size) {
+                        LOG(ERROR) << "Malformed descriptor: too short at offset " << offset;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    const auto *descriptor = &scs_descriptor_element_list[offset];
+
+                    LOG(TRACE) << "SCS Descriptor found at offset " << offset
+                               << " | Element ID: " << static_cast<int>(descriptor[0])
+                               << " | Length: " << static_cast<int>(length)
+                               << " | SCSID: " << static_cast<int>(descriptor[2])
+                               << " | RequestType: " << static_cast<int>(descriptor[3]);
+
+                    const auto descriptor_info =
+                        qos_management::parse_qos_management_descriptor_element(descriptor,
+                                                                                descriptor_len);
+                    if (!descriptor_info.is_valid() ||
+                        descriptor_info.element_type !=
+                            qos_management::eDescriptorElementType::Scs) {
+                        LOG(ERROR)
+                            << "Malformed SCS request: invalid descriptor at offset " << offset;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    offset += descriptor_len;
+
+                    // --- Pack SCS Descriptor elements ---
+                    auto qos_mgmt_desc_tlv =
+                        cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+                    if (!qos_mgmt_desc_tlv) {
+                        LOG(ERROR) << "addClass "
+                                      "wfa_map::tlvQoSManagementDescriptor failed!";
+                        return false;
+                    }
+                    qos_mgmt_desc_tlv->bssid()      = mgmt_frame->bssid;
+                    qos_mgmt_desc_tlv->client_mac() = mgmt_frame->mac;
+
+                    // QMID should be set by Controller when QoS rules is approved and is sent on Agent to apply
+                    // at this point it's just reserved value
+                    qos_mgmt_desc_tlv->qmid() = {};
+
+                    // SCS Descriptor element
+                    if (!qos_mgmt_desc_tlv->set_descriptor_element(descriptor, descriptor_len)) {
+                        LOG(ERROR) << "set_descriptor_element failed";
+                        return false;
+                    }
+                    has_qos_management_descriptor = true;
+                }
+
+                if (!malformed_scs_request && offset != scs_descriptor_element_list.size()) {
+                    LOG(ERROR) << "Malformed descriptor: incomplete trailing header at offset "
+                               << offset;
+                    malformed_scs_request = true;
+                }
+
+                if (malformed_scs_request) {
+                    LOG(DEBUG) << "Ignoring malformed SCS request from " << mgmt_frame->mac;
+                    return true;
+                }
+            } else if (mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST) {
+                if (mgmt_frame->data.size() < qos_management_descriptor_offset) {
+                    LOG(ERROR) << "Malformed MSCS request: missing fixed fields";
+                    return true;
+                }
+
+                // MSCS Descriptor element (as described in 9.4.2.243 of IEEE 802.11-2020)
+                const std::vector<uint8_t> mscs_descriptor_element(
+                    mgmt_frame->data.begin() + qos_management_descriptor_offset,
+                    mgmt_frame->data.end());
+                if (mscs_descriptor_element.empty()) {
+                    LOG(DEBUG) << "No QoS management descriptors were extracted from the request";
+                    return true;
+                }
+
+                if (mscs_descriptor_element.size() < qos_management_descriptor_header_size) {
+                    LOG(ERROR) << "Malformed MSCS request: missing descriptor header";
+                    return true;
+                }
+
+                const size_t descriptor_len = static_cast<size_t>(mscs_descriptor_element[1]) +
+                                              qos_management_descriptor_header_size;
+                if (descriptor_len < minimum_qos_management_descriptor_size) {
+                    LOG(ERROR) << "Malformed MSCS request: descriptor too short";
+                    return true;
+                }
+                if (descriptor_len != mscs_descriptor_element.size()) {
+                    LOG(ERROR) << "Malformed MSCS request: descriptor length mismatch";
+                    return true;
+                }
+                const auto descriptor_info =
+                    qos_management::parse_qos_management_descriptor_element(
+                        mscs_descriptor_element);
+                if (!descriptor_info.is_valid() ||
+                    descriptor_info.element_type != qos_management::eDescriptorElementType::Mscs) {
+                    LOG(ERROR) << "Malformed MSCS request: invalid descriptor";
+                    return true;
+                }
+
+                // Add the tlvQoSManagementDescriptor (could be only one)
+                auto qos_mgmt_desc_tlv = cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+                if (!qos_mgmt_desc_tlv) {
+                    LOG(ERROR) << "addClass wfa_map::tlvQoSManagementDescriptor failed!";
+                    return false;
+                }
+
+                qos_mgmt_desc_tlv->bssid()      = mgmt_frame->bssid;
+                qos_mgmt_desc_tlv->client_mac() = mgmt_frame->mac;
+
+                // QMID should be set by Controller when QoS rules is approved and is sent on Agent to apply
+                // at this point it's just reserved value
+                qos_mgmt_desc_tlv->qmid() = {};
+
+                if (!qos_mgmt_desc_tlv->set_descriptor_element(mscs_descriptor_element.data(),
+                                                               mscs_descriptor_element.size())) {
+                    LOG(ERROR) << "set_descriptor_element failed";
+                    return false;
+                }
+                has_qos_management_descriptor = true;
+            }
+
+            if (!has_qos_management_descriptor) {
+                LOG(DEBUG) << "No QoS management descriptors were extracted from the request";
+                return true;
+            }
+
+            return send_cmdu(cmdu_tx);
         }
 
         // Convert the BWL type to a tunnelled message type
@@ -3405,7 +3791,9 @@ void ApManager::handle_hostapd_attached()
 
     notification->params().hybrid_mode_supported = ap_wlan_hal->hybrid_mode_supported();
 
-    notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    notification->radio_max_bss()      = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    notification->radio_mscs_support() = ap_wlan_hal->get_radio_info().mscs_supported;
+    notification->radio_scs_support()  = ap_wlan_hal->get_radio_info().scs_supported;
 
     fill_cs_params(notification->cs_params());
 
@@ -3436,6 +3824,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " eht_supported = " << ap_wlan_hal->get_radio_info().eht_supported;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    LOG(INFO) << " mscs_supported = " << ap_wlan_hal->get_radio_info().mscs_supported;
+    LOG(INFO) << " scs_supported = " << ap_wlan_hal->get_radio_info().scs_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,
@@ -3563,6 +3953,16 @@ bool ApManager::handle_ap_enabled(int vap_id)
     LOG(INFO) << "vap_id = " << int(vap_id) << ", bssid = " << vap_info.mac
               << ", ssid = " << vap_info.ssid << ", fronthaul = " << vap_info.fronthaul
               << ", backhaul = " << vap_info.backhaul;
+
+    if (m_pending_qos_management_settings.valid && vap_info.fronthaul &&
+        net::network_utils::is_valid_mac(vap_info.mac)) {
+        const auto bssid = tlvf::mac_from_string(vap_info.mac);
+        if (bssid != beerocks::net::network_utils::ZERO_MAC &&
+            !apply_qos_management_settings(bssid, m_pending_qos_management_settings.mscs_enable,
+                                           m_pending_qos_management_settings.scs_enable)) {
+            return false;
+        }
+    }
 
     if (vap_info.backhaul) {
         LOG(DEBUG) << "disallow_profile1=" << vap_info.profile1_backhaul_sta_association_disallowed

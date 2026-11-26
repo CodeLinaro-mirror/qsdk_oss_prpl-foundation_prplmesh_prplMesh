@@ -208,6 +208,8 @@ struct RadioInfo {
     std::unordered_map<int, VAPElement> available_vaps; // key = vap_id
 
     uint8_t radio_max_bss_supported = 0;
+    bool mscs_supported             = false;
+    bool scs_supported              = false;
     std::string chipset_vendor;
 };
 
@@ -451,7 +453,9 @@ enum class eManagementFrameType {
     BTM_QUERY                = 0x02, /**< BSS transition query */
     WNM_REQUEST              = 0x03, /**< 802.11v transition request */
     ANQP_REQUEST             = 0x04, /**< Access Network Query Protocol request */
-    RADIO_MEASUREMENT_REPORT = 0x05  /**< Radio measurement report */
+    RADIO_MEASUREMENT_REPORT = 0x05, /**< Radio measurement report */
+    SCS_REQUEST              = 0x06, /**< SCS request */
+    MSCS_REQUEST             = 0x07, /**< MSCS request */
 };
 
 /**

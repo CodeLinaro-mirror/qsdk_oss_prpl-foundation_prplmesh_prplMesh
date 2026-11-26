@@ -107,6 +107,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapsList& vap_list();
         sVapTypesList& vap_type_list();
         uint8_t& radio_max_bss();
+        uint8_t& radio_mscs_support();
+        uint8_t& radio_scs_support();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -124,6 +126,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapsList* m_vap_list = nullptr;
         sVapTypesList* m_vap_type_list = nullptr;
         uint8_t* m_radio_max_bss = nullptr;
+        uint8_t* m_radio_mscs_support = nullptr;
+        uint8_t* m_radio_scs_support = nullptr;
 };
 
 class cACTION_APMANAGER_ENABLE_APS_REQUEST : public BaseClass
@@ -1413,6 +1417,69 @@ class cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST : public BaseClass
         eActionOp_APMANAGER* m_action_op = nullptr;
         sMacAddr* m_sta_mac = nullptr;
         uint16_t* m_timeout = nullptr;
+};
+
+class cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+};
+
+class cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+};
+
+class cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST);
+        }
+        sMacAddr& bssid();
+        uint8_t& mscs_enable();
+        uint8_t& scs_enable();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        uint8_t* m_mscs_enable = nullptr;
+        uint8_t* m_scs_enable = nullptr;
 };
 
 }; // close namespace: beerocks_message
