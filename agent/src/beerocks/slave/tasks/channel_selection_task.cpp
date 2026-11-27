@@ -1069,8 +1069,7 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
             }
         }
 
-        // If there is a pending preference query, need to build a preference report
-        build_channel_preference_report(radio_mac);
+        m_pending_preference.preference_ready[radio_mac] = true;
 
         // Once the preference report is done (All radios have responded)
         if (channel_preference_report_ready()) {
@@ -1323,7 +1322,6 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
         }
     }
 
-    m_pending_preference.preference_ready[radio_mac] = true;
     return true;
 }
 
@@ -1359,8 +1357,11 @@ bool ChannelSelectionTask::send_channel_preference_report()
 
     auto db = AgentDB::get();
 
-    for (const auto &pending_preference_iter : m_pending_preference.preference_ready) {
-        if (!create_channel_preference_tlv(pending_preference_iter.first)) {
+    // Every report covers all radios, even when only one radio triggered the refresh.
+    // Keep the pending refresh set separate from the report's radio coverage.
+    for (const auto radio : db->get_radios_list()) {
+        if (!build_channel_preference_report(radio->front.iface_mac) ||
+            !create_channel_preference_tlv(radio->front.iface_mac)) {
             LOG(ERROR) << "Failed to create Channel Preference TLV";
             return false;
         }
@@ -1372,8 +1373,9 @@ bool ChannelSelectionTask::send_channel_preference_report()
     if (db->controller_info.profile_support >
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
 
-        create_cac_completion_report_tlv();
-        create_cac_status_report_tlv();
+        if (!create_cac_completion_report_tlv() || !create_cac_status_report_tlv()) {
+            return false;
+        }
     }
 
     if (db->controller_info.bridge_mac == beerocks::net::network_utils::ZERO_MAC) {
@@ -1521,21 +1523,8 @@ bool ChannelSelectionTask::create_cac_status_report_tlv()
     CacStatusDatabase cac_status_database;
     auto db = AgentDB::get();
 
-    for (const auto &pending_preference_iter : m_pending_preference.preference_ready) {
-        const auto &radio_mac = pending_preference_iter.first;
-        auto radio            = db->get_radio_by_mac(radio_mac);
-        if (!radio) {
-            LOG(DEBUG) << "Radio " << radio_mac << " does not exist on the db";
-            return false;
-        }
-
-        if (!cac_status_database.add_cac_status_report_tlv(radio, cac_status_report_tlv)) {
-            LOG(DEBUG) << "Failed to add CAC Status Report TLV for " << radio_mac;
-            return false;
-        }
-    }
-
-    return true;
+    return cac_status_database.add_cac_status_report_tlv(db->get_radios_list(),
+                                                         cac_status_report_tlv);
 }
 
 bool ChannelSelectionTask::handle_transmit_power_limit(

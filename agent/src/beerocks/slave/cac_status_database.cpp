@@ -10,6 +10,8 @@
 #include "cac_capabilities_database.h"
 #include <bcl/beerocks_utils.h>
 
+#include <limits>
+
 namespace beerocks {
 
 CacAvailableChannels CacStatusDatabase::get_available_channels(const sMacAddr &radio_mac) const
@@ -150,44 +152,60 @@ bool CacStatusDatabase::update_cac_status_db(const AgentDB::sRadio *radio)
 }
 
 bool CacStatusDatabase::add_cac_status_report_tlv(
-    const AgentDB::sRadio *radio,
+    const std::vector<AgentDB::sRadio *> &radios,
     const std::shared_ptr<wfa_map::tlvProfile2CacStatusReport> cac_status_report_tlv)
 {
-    if (!radio) {
+    if (!cac_status_report_tlv) {
         return false;
     }
 
-    if (!update_cac_status_db(radio)) {
+    // Collect every radio before allocating the TLV's three variable-length lists.
+    CacAvailableChannels available_channels;
+    CacNonOccupancyChannels non_occupancy_channels;
+    CacActiveChannels active_channels;
+    for (const auto radio : radios) {
+        if (!radio) {
+            return false;
+        }
+        // Radios without DFS channels contribute no CAC entries.
+        update_cac_status_db(radio);
+        auto available = get_available_channels(radio->front.iface_mac);
+        available_channels.insert(available_channels.end(), available.begin(), available.end());
+        auto non_occupancy = get_non_occupancy_channels(radio->front.iface_mac);
+        non_occupancy_channels.insert(non_occupancy_channels.end(), non_occupancy.begin(),
+                                      non_occupancy.end());
+        auto active = get_active_channels(radio->front.iface_mac);
+        active_channels.insert(active_channels.end(), active.begin(), active.end());
+    }
+
+    if (available_channels.size() > std::numeric_limits<uint8_t>::max() ||
+        non_occupancy_channels.size() > std::numeric_limits<uint8_t>::max() ||
+        active_channels.size() > std::numeric_limits<uint8_t>::max()) {
+        LOG(ERROR) << "Too many channel entries for CAC Status Report TLV";
         return false;
     }
 
-    auto available_channels = get_available_channels(radio->front.iface_mac);
     if (!available_channels.empty() &&
         !cac_status_report_tlv->alloc_available_channels(available_channels.size())) {
         LOG(ERROR) << "Failed to allocate " << available_channels.size()
                    << " structures for available channels";
+        return false;
     }
 
     for (unsigned int i = 0; i < available_channels.size(); ++i) {
         auto &available_ref           = std::get<1>(cac_status_report_tlv->available_channels(i));
         available_ref.operating_class = available_channels[i].operating_class;
         available_ref.channel         = available_channels[i].channel;
-        if (son::wireless_utils::is_dfs_channel(available_channels[i].channel,
-                                                radio->wifi_channel.get_freq_type())) {
-            available_ref.minutes_since_cac_completion = static_cast<uint16_t>(
-                std::chrono::duration_cast<std::chrono::minutes>(available_channels[i].duration)
-                    .count());
-        } else {
-            // Set to zero for non-DFS channels
-            available_ref.minutes_since_cac_completion = 0;
-        }
+        available_ref.minutes_since_cac_completion = static_cast<uint16_t>(
+            std::chrono::duration_cast<std::chrono::minutes>(available_channels[i].duration)
+                .count());
     }
 
-    auto non_occupancy_channels = get_non_occupancy_channels(radio->front.iface_mac);
     if (!non_occupancy_channels.empty() &&
         !cac_status_report_tlv->alloc_detected_pairs(non_occupancy_channels.size())) {
         LOG(ERROR) << "Failed to allocate " << non_occupancy_channels.size()
                    << " structures for non-occupancy channels";
+        return false;
     }
 
     for (unsigned int i = 0; i < non_occupancy_channels.size(); ++i) {
@@ -197,11 +215,11 @@ bool CacStatusDatabase::add_cac_status_report_tlv(
         detected_ref.duration = static_cast<uint16_t>(non_occupancy_channels[i].duration.count());
     }
 
-    auto active_channels = get_active_channels(radio->front.iface_mac);
     if (!active_channels.empty() &&
         !cac_status_report_tlv->alloc_active_cac_pairs(active_channels.size())) {
         LOG(ERROR) << "Failed to allocate " << active_channels.size()
                    << " structures for active channels";
+        return false;
     }
 
     for (unsigned int i = 0; i < active_channels.size(); ++i) {

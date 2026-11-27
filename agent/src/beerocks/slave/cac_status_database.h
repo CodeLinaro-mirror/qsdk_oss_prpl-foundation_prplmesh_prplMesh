@@ -22,14 +22,14 @@ public:
     bool update_cac_status_db(const AgentDB::sRadio *radio) override;
 
     /**
-     * @brief Fills in CAC Status Report TLV by given radio.
+     * @brief Fills in CAC Status Report TLV for all given radios.
      * 
-     * @param radio Pointer to the AgentDB's radio element.
+     * @param radios AgentDB radio elements to include.
      * @param cac_status_report_tlv CAC Status Report TLV.
      * @return True on success, false otherwise.
      */
     bool add_cac_status_report_tlv(
-        const AgentDB::sRadio *radio,
+        const std::vector<AgentDB::sRadio *> &radios,
         const std::shared_ptr<wfa_map::tlvProfile2CacStatusReport> cac_status_report_tlv);
 
     sCacCompletionStatus get_completion_status(const AgentDB::sRadio *radio) const override;
