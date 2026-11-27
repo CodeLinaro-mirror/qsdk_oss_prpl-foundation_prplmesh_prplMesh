@@ -7,12 +7,28 @@
  */
 
 #include "utils_wlan_hal_whm.h"
+#include <bcl/beerocks_string_utils.h>
 #include <easylogging++.h>
+#include <limits>
 #include <unordered_set>
 
 namespace bwl {
 namespace whm {
 namespace utils_wlan_hal_whm {
+
+uint16_t cac_duration_from_string(const std::string &value)
+{
+    // KeyValueParser retains trailing keyless fields such as "bitmap:0x0000"
+    // in the cac_time value. Only the first whitespace-delimited token is the duration.
+    auto token = value.substr(0, value.find_first_of(" \t\r\n"));
+    beerocks::string_utils::rtrim(token, "s");
+    auto duration = beerocks::string_utils::stoi(token);
+    if (duration < 0 || duration > std::numeric_limits<uint16_t>::max()) {
+        LOG(WARNING) << "Invalid CAC duration: " << value;
+        return 0;
+    }
+    return static_cast<uint16_t>(duration);
+}
 
 eRadioState radio_state_from_string(const std::string &state)
 {

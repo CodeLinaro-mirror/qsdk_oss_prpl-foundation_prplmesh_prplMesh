@@ -7,6 +7,7 @@
  */
 
 #include "ap_wlan_hal_whm.h"
+#include "utils_wlan_hal_whm.h"
 
 #include <algorithm>
 #include <bcl/beerocks_defines.h>
@@ -2049,9 +2050,8 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
             wpaCtrl_bw_to_beerocks_bw(beerocks::string_utils::stoi(tmp_string)));
 
         // CAC Duration
-        tmp_string = parsed_obj["cac_time"];
-        beerocks::string_utils::rtrim(tmp_string, "s");
-        msg->params.cac_duration_sec = beerocks::string_utils::stoi(tmp_string);
+        msg->params.cac_duration_sec =
+            utils_wlan_hal_whm::cac_duration_from_string(parsed_obj["cac_time"]);
 
         // Add the message to the queue
         event_queue_push(Event::DFS_CAC_Started, msg_buff);

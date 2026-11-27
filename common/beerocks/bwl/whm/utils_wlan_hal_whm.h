@@ -19,6 +19,12 @@ namespace whm {
 namespace utils_wlan_hal_whm {
 
 /**
+ * @brief Parse a CAC duration in seconds, ignoring trailing event fields.
+ * @return The duration, or zero for an invalid or out-of-range value.
+ */
+uint16_t cac_duration_from_string(const std::string &value);
+
+/**
 * @brief Converts a string-based radio state to an eRadioState.
 */
 eRadioState radio_state_from_string(const std::string &state);
