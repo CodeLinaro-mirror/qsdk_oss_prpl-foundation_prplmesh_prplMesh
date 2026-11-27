@@ -40,7 +40,8 @@ public:
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
     std::vector<eTaskEvent> get_task_event_list() const override
     {
-        return {eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST};
+        return {eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST,
+                eTaskEvent::SWITCH_CHANNEL_REQUEST_CANCELLED};
     }
     void handle_event(eTaskEvent event, std::shared_ptr<void> event_obj) override;
 
@@ -113,6 +114,8 @@ private:
 
     struct sPendingChannelPreferenceReport {
         uint16_t mid = 0;
+        // A Controller query may also have MID zero.
+        bool query_pending = false;
         std::unordered_map<sMacAddr, bool> preference_ready{};
         // Radios to request the channels list again for, once the response in flight arrives.
         std::unordered_set<sMacAddr> refresh_again{};

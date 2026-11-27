@@ -201,6 +201,18 @@ void CacFsm::config_fsm()
                 }
                 m_ifname = switch_channel_report->switch_channel_notification->ifname;
 
+                const auto &notification = *switch_channel_report->switch_channel_notification;
+                auto db                  = AgentDB::get();
+                auto radio               = db->radio(m_ifname);
+                if (radio && radio->cac_termination.request &&
+                    notification.ap_channel_switch.switch_reason != CH_SWITCH_REASON_RADAR &&
+                    (notification.ap_channel_switch.channel ==
+                         radio->cac_termination.return_channel ||
+                     radio->cac_termination.request->matches_channel_switch(notification, true))) {
+                    LOG(DEBUG) << "Ignoring channel report for terminated CAC on " << m_ifname;
+                    return false;
+                }
+
                 send_preference_report();
                 return false;
             })
@@ -324,6 +336,14 @@ void CacFsm::config_fsm()
                     return false;
                 }
 
+                auto db    = AgentDB::get();
+                auto radio = db->radio(m_ifname);
+                if (!radio) {
+                    LOG(ERROR) << "Cannot terminate CAC for unknown interface " << m_ifname;
+                    transition.change_destination(fsm_state::ERROR);
+                    return true;
+                }
+
                 // 2. send stop-cac request to the driver
 
                 // save the time point we asked for stopping the cac
@@ -349,6 +369,10 @@ void CacFsm::config_fsm()
                     transition.change_destination(fsm_state::ERROR);
                     return true;
                 }
+
+                // Suppress reports before any abort notification or cancellation reply arrives.
+                radio->cac_termination = {m_active_switch_channel_request, m_original_channel,
+                                          true};
 
                 // moving to next state: WAIT_FOR_CAC_TERMINATION
                 return true;
@@ -409,6 +433,15 @@ void CacFsm::config_fsm()
                     LOG(ERROR) << "null cac-termination success pointer";
                     transition.change_destination(fsm_state::ERROR);
                     return true;
+                }
+
+                auto db    = AgentDB::get();
+                auto radio = db->radio(m_ifname);
+                if (radio) {
+                    radio->cac_termination.pending = false;
+                    if (*success) {
+                        radio->cac_completion_time = m_now();
+                    }
                 }
 
                 if (!*success) {
@@ -554,6 +587,7 @@ bool CacFsm::send_cac_request(beerocks::AgentDB::sRadio *db_radio)
 
     // store the request in the database
     db_radio->last_switch_channel_request = m_active_switch_channel_request;
+    db_radio->cac_termination             = {};
 
     return true;
 }

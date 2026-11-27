@@ -210,7 +210,22 @@ void ChannelSelectionTask::handle_event(uint8_t event_enum_value, const void *ev
 
 void ChannelSelectionTask::handle_event(eTaskEvent event, std::shared_ptr<void> event_obj)
 {
-    if (event != eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST || !event_obj) {
+    if (!event_obj) {
+        return;
+    }
+    if (event == eTaskEvent::SWITCH_CHANNEL_REQUEST_CANCELLED) {
+        auto request = std::static_pointer_cast<const sSwitchChannelRequest>(event_obj);
+        auto db      = AgentDB::get();
+        auto radio   = db->radio(request->ifname);
+        if (radio && radio->cac_termination.request == request &&
+            !m_pending_preference.query_pending && m_pending_preference.preference_ready.empty()) {
+            // No refresh is in flight to consume the old CAC reporting flags.
+            m_send_preference_report_after_cac_started_event    = false;
+            m_send_preference_report_after_cac_completion_event = false;
+        }
+        return;
+    }
+    if (event != eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST) {
         return;
     }
     const auto &radio_mac = *std::static_pointer_cast<sMacAddr>(event_obj);
@@ -258,7 +273,9 @@ void ChannelSelectionTask::handle_channel_preference_query(ieee1905_1::CmduMessa
 
     // Clear previous request, if any
     m_pending_preference.preference_ready.clear();
-    m_pending_preference.mid = mid;
+    m_pending_preference.refresh_again.clear();
+    m_pending_preference.mid           = mid;
+    m_pending_preference.query_pending = true;
 
     auto db = AgentDB::get();
 
@@ -721,7 +738,7 @@ void ChannelSelectionTask::handle_vs_csa_notification(
 
     // Clear the m_pending_preference struct and m_pending_selection struct
     // if there are no pending selection request/preference query
-    if (!m_pending_preference.mid && !m_pending_selection.mid && is_radar) {
+    if (!m_pending_preference.query_pending && !m_pending_selection.mid && is_radar) {
 
         // Clear and set the specific radio in the the preference ready map.
         m_pending_preference.preference_ready.clear();
@@ -884,8 +901,6 @@ void ChannelSelectionTask::handle_vs_cac_started_notification(
         return;
     }
 
-    m_send_preference_report_after_cac_started_event = true;
-
     auto db = AgentDB::get();
     auto radio =
         db->get_radio_by_mac(beerocks_header->actionhdr()->radio_mac(), AgentDB::eMacType::RADIO);
@@ -906,6 +921,22 @@ void ChannelSelectionTask::handle_vs_cac_started_notification(
     }
     cac_started_notification->ifname             = sender_iface_name;
     cac_started_notification->cac_started_params = notification->params();
+    if (radio->cac_termination.request) {
+        if (radio->cac_termination.pending &&
+            radio->cac_termination.request->matches_cac_started(*cac_started_notification)) {
+            LOG(DEBUG) << "Ignoring CAC start while terminating CAC on " << sender_iface_name;
+            return;
+        }
+        if (!radio->cac_termination.pending) {
+            // A fresh driver CAC after restoration starts a new operation. Do not
+            // revive the completion record of the previously cancelled request.
+            if (radio->last_switch_channel_request == radio->cac_termination.request) {
+                radio->last_switch_channel_request.reset();
+            }
+            radio->cac_termination = {};
+        }
+    }
+    m_send_preference_report_after_cac_started_event = true;
     m_btl_ctx.m_task_pool.send_event(eTaskEvent::CAC_STARTED_NOTIFICATION,
                                      cac_started_notification);
 
@@ -970,6 +1001,12 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     }
     cac_completed_notification->ifname               = sender_iface_name;
     cac_completed_notification->cac_completed_params = notification->params();
+
+    if (radio->cac_termination.request &&
+        radio->cac_termination.request->matches_cac_completed(*cac_completed_notification)) {
+        LOG(DEBUG) << "Ignoring completion of terminated CAC on " << sender_iface_name;
+        return;
+    }
 
     m_btl_ctx.m_task_pool.send_event(eTaskEvent::CAC_COMPLETED_NOTIFICATION,
                                      cac_completed_notification);
@@ -1061,7 +1098,21 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
                m_send_preference_report_after_csa_finished_event ||
                m_send_preference_report_after_dfs_nop_finished_event) {
 
-        if (m_pending_preference.refresh_again.erase(radio_mac)) {
+        const bool terminated_cac = radio->cac_termination.request &&
+                                    !m_pending_preference.query_pending &&
+                                    !m_send_preference_report_after_csa_finished_event &&
+                                    !m_send_preference_report_after_dfs_nop_finished_event;
+        if (terminated_cac) {
+            // Drop only this radio's automatic refresh. Keep Controller queries and
+            // reports pending for other radios, including a response already ready.
+            m_pending_preference.preference_ready.erase(radio_mac);
+            m_pending_preference.refresh_again.erase(radio_mac);
+            if (m_pending_preference.preference_ready.empty()) {
+                m_send_preference_report_after_cac_started_event    = false;
+                m_send_preference_report_after_cac_completion_event = false;
+                return;
+            }
+        } else if (m_pending_preference.refresh_again.erase(radio_mac)) {
             LOG(DEBUG) << "Channels list of radio " << radio_mac
                        << " may predate the last refresh, requesting it again";
             if (send_channels_list_request(radio_mac)) {
@@ -1069,7 +1120,9 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
             }
         }
 
-        m_pending_preference.preference_ready[radio_mac] = true;
+        if (!terminated_cac) {
+            m_pending_preference.preference_ready[radio_mac] = true;
+        }
 
         // Once the preference report is done (All radios have responded)
         if (channel_preference_report_ready()) {
@@ -1079,14 +1132,15 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
                 LOG(ERROR) << "Failed to send the CHANNEL_PREFERENCE_REPORT_MESSAGE!";
             }
 
-            if (m_send_preference_report_after_cac_completion_event ||
-                m_send_preference_report_after_csa_finished_event) {
+            if (!terminated_cac && (m_send_preference_report_after_cac_completion_event ||
+                                    m_send_preference_report_after_csa_finished_event)) {
                 send_operating_channel_report(radio_mac);
             }
 
             // Clear the pending preference state.
             m_pending_preference.preference_ready.clear();
             m_pending_preference.refresh_again.clear();
+            m_pending_preference.query_pending                    = false;
             m_pending_preference.mid                              = 0;
             m_send_preference_report_after_cac_started_event      = false;
             m_send_preference_report_after_cac_completion_event   = false;
@@ -1501,6 +1555,13 @@ bool ChannelSelectionTask::create_cac_completion_report_tlv()
         if (!radio) {
             LOG(DEBUG) << "Radio " << radio_mac << " does not exist on the db";
             return false;
+        }
+
+        if (!radio->last_switch_channel_request ||
+            radio->last_switch_channel_request == radio->cac_termination.request) {
+            // A query can still report current preferences/status after cancellation,
+            // but must not advertise completion of the terminated operation.
+            continue;
         }
 
         if (!cac_status_database.add_cac_completion_report_tlv(radio, cac_completion_report_tlv)) {

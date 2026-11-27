@@ -446,6 +446,14 @@ public:
         // and bandwidth.
         std::shared_ptr<sSwitchChannelRequest> last_switch_channel_request;
 
+        // Retain the cancelled operation after the FSM returns to IDLE, so late
+        // CAC/CSA notifications cannot report it as completed.
+        struct sCacTermination {
+            std::shared_ptr<const sSwitchChannelRequest> request;
+            uint8_t return_channel = 0;
+            bool pending           = false;
+        } cac_termination;
+
         std::string chipset_vendor;
     };
     struct {
