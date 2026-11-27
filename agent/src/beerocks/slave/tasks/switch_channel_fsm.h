@@ -40,6 +40,7 @@ public:
 private:
     void config_fsm();
     void reset();
+    void update_deadline(std::chrono::seconds duration);
     void report(eSwitchChannelReportStatus status = eSwitchChannelReportStatus::NOT_COMPUTED);
     bool handle_csa(TTransition &transition, const void *args);
     bool handle_cac_completed(TTransition &transition, const void *args);

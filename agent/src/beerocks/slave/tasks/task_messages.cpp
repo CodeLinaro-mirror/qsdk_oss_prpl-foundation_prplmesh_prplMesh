@@ -82,6 +82,21 @@ bool sSwitchChannelRequest::matches_cac_completed(
            params.frequency == son::wireless_utils::channel_to_freq(params.channel, freq_type);
 }
 
+bool sSwitchChannelRequest::matches_channel_switch(const sSwitchChannelNotification &notification,
+                                                   bool allow_primary_secondary_swap) const
+{
+    const auto &params = notification.ap_channel_switch;
+    if (notification.ifname != ifname || params.bandwidth != bandwidth) {
+        return false;
+    }
+    if (params.channel == channel) {
+        return true;
+    }
+    auto center =
+        allow_primary_secondary_swap ? swapped_cac_center_frequency(*this, params.channel) : 0;
+    return center && params.vht_center_frequency == center;
+}
+
 std::ostream &operator<<(std::ostream &os, const sSwitchChannelRequest &switch_channel_request)
 {
     os << "switch channel request - " << '\n'

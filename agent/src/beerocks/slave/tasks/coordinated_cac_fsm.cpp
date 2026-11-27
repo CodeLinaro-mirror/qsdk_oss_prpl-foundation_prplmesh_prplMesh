@@ -569,7 +569,8 @@ bool CacFsm::update_wait_time(const void *args)
         wait->started_at < m_switch_channel_start_time_point || wait->started_at > m_now()) {
         return false;
     }
-    // The duration starts at CAC-START, not at the earlier channel-switch request.
+    // Each wait starts at its triggering notification (CAC start or completion),
+    // rather than at the earlier channel-switch request.
     // Let SwitchChannelFsm publish its timeout before this task expires independently.
     m_switch_channel_start_time_point = wait->started_at;
     m_wait_for_switch_channel_report  = wait->duration_sec + std::chrono::seconds(5);
@@ -589,16 +590,18 @@ bool CacFsm::report_succeeded(const sSwitchChannelReport &report) const
     if (report.compute_switch_channel_report_status() != eSwitchChannelReportStatus::SUCCESS) {
         return false;
     }
-    const auto &request = *m_active_switch_channel_request;
+    const auto &request  = *m_active_switch_channel_request;
+    const auto &switched = report.switch_channel_notification;
+    if (!switched || !switched->switched ||
+        !request.matches_channel_switch(*switched, request.wait_for_cac)) {
+        return false;
+    }
     if (request.wait_for_cac || report.cac_happened) {
         const auto &completed = report.cac_completed_notification;
         return report.cac_happened && completed && request.matches_cac_completed(*completed) &&
                completed->cac_completed_params.success == 1;
     }
-    const auto &switched = report.switch_channel_notification;
-    return switched && switched->switched && switched->ifname == request.ifname &&
-           switched->ap_channel_switch.channel == request.channel &&
-           switched->ap_channel_switch.bandwidth == request.bandwidth;
+    return true;
 }
 
 bool CacFsm::is_timeout_waiting_for_switch_channel_report()

@@ -104,7 +104,7 @@ void SwitchChannelFsm::config_fsm()
             [&](TTransition &, const void *args) {
                 auto notification =
                     *static_cast<const std::shared_ptr<sCacStartedNotification> *>(args);
-                if (!notification ||
+                if (m_cac_completed_notification || !notification ||
                     !m_switch_channel_request->matches_cac_started(*notification)) {
                     return false;
                 }
@@ -113,18 +113,12 @@ void SwitchChannelFsm::config_fsm()
                 auto duration =
                     std::chrono::seconds(notification->cac_started_params.cac_duration_sec);
                 duration += std::max(std::chrono::seconds(5), duration / 5);
-                auto started_at        = m_now();
-                m_deadline             = started_at + duration;
-                auto wait              = std::make_shared<sSwitchChannelDurationTime>();
-                wait->ifname           = m_ifname;
-                wait->duration_sec     = duration;
-                wait->original_request = m_switch_channel_request;
-                wait->started_at       = started_at;
-                m_task_pool.send_event(eTaskEvent::SWITCH_CHANNEL_DURATION_TIME, wait);
+                update_deadline(duration);
                 return true;
             })
-        // Completion itself is sufficient evidence even if CAC-START was lost.
-        .on(fsm_event::CAC_COMPLETED, fsm_state::IDLE,
+        // Completion can recover a lost CAC-START, but still needs a channel notification.
+        .on(fsm_event::CAC_COMPLETED,
+            {fsm_state::IDLE, fsm_state::WAIT_FOR_SWITCH_CHANNEL_NOTIFICATION},
             [&](TTransition &transition, const void *args) {
                 return handle_cac_completed(transition, args);
             })
@@ -137,8 +131,12 @@ void SwitchChannelFsm::config_fsm()
                 if (m_now() <= m_deadline) {
                     return false;
                 }
-                LOG(ERROR) << m_ifname << ": timeout waiting for channel switch or CAC start";
-                report(m_switch_channel_request->wait_for_cac
+                if (m_cac_completed_notification) {
+                    LOG(ERROR) << m_ifname << ": timeout waiting for channel switch after CAC";
+                } else {
+                    LOG(ERROR) << m_ifname << ": timeout waiting for channel switch or CAC start";
+                }
+                report(m_switch_channel_request->wait_for_cac && !m_cac_completed_notification
                            ? eSwitchChannelReportStatus::CAC_FAILED
                            : eSwitchChannelReportStatus::NO_SWITCH_CHANNEL_NOTIFICATION);
                 return true;
@@ -149,7 +147,8 @@ void SwitchChannelFsm::config_fsm()
             [&](TTransition &, const void *args) { return handle_cancelled(args); })
         .on(fsm_event::CSA, fsm_state::IDLE,
             [&](TTransition &transition, const void *args) { return handle_csa(transition, args); })
-        .on(fsm_event::CAC_COMPLETED, fsm_state::IDLE,
+        .on(fsm_event::CAC_COMPLETED,
+            {fsm_state::IDLE, fsm_state::WAIT_FOR_SWITCH_CHANNEL_NOTIFICATION},
             [&](TTransition &transition, const void *args) {
                 return handle_cac_completed(transition, args);
             })
@@ -173,20 +172,27 @@ void SwitchChannelFsm::config_fsm()
 bool SwitchChannelFsm::handle_csa(TTransition &, const void *args)
 {
     auto notification = *static_cast<const std::shared_ptr<sSwitchChannelNotification> *>(args);
-    if (!notification || notification->ifname != m_ifname ||
-        notification->ap_channel_switch.channel != m_switch_channel_request->channel) {
+    if (!notification || notification->ifname != m_ifname) {
         return false;
     }
+    const bool cac_expected =
+        m_switch_channel_request->wait_for_cac || bool(m_cac_started_notification);
     if (!notification->switched) {
+        if (notification->ap_channel_switch.channel != m_switch_channel_request->channel &&
+            !m_switch_channel_request->matches_channel_switch(
+                *notification, m_switch_channel_request->wait_for_cac)) {
+            return false;
+        }
         m_switch_channel_notification = std::move(notification);
         report(eSwitchChannelReportStatus::CSA_FAILED);
         return true;
     }
-    if (notification->ap_channel_switch.bandwidth != m_switch_channel_request->bandwidth) {
+    if (!m_switch_channel_request->matches_channel_switch(*notification,
+                                                          m_switch_channel_request->wait_for_cac)) {
         return false;
     }
     m_switch_channel_notification = std::move(notification);
-    if (m_switch_channel_request->wait_for_cac || m_cac_started_notification) {
+    if (cac_expected && !m_cac_completed_notification) {
         // Channel/DM changes also occur when CAC starts, before the channel is usable.
         return false;
     }
@@ -194,17 +200,39 @@ bool SwitchChannelFsm::handle_csa(TTransition &, const void *args)
     return true;
 }
 
-bool SwitchChannelFsm::handle_cac_completed(TTransition &, const void *args)
+bool SwitchChannelFsm::handle_cac_completed(TTransition &transition, const void *args)
 {
     // Match the request, including hostapd's primary/secondary swap for HT40 CACs.
     auto notification = *static_cast<const std::shared_ptr<sCacCompletedNotification> *>(args);
-    if (!notification || !m_switch_channel_request->matches_cac_completed(*notification) ||
+    if (m_cac_completed_notification || !notification ||
+        !m_switch_channel_request->matches_cac_completed(*notification) ||
         (!m_switch_channel_request->wait_for_cac && !m_cac_started_notification)) {
         return false;
     }
     m_cac_completed_notification = std::move(notification);
+    if (m_cac_completed_notification->cac_completed_params.success == 1 &&
+        !m_switch_channel_notification) {
+        // Background CAC can finish before the operating radio reaches the target.
+        // Keep the request active until that switch finishes before permitting restoration.
+        LOG(DEBUG) << m_ifname << ": CAC completed, waiting for target channel switch";
+        update_deadline(NOTIFICATION_TIMEOUT);
+        transition.change_destination(fsm_state::WAIT_FOR_SWITCH_CHANNEL_NOTIFICATION);
+        return true;
+    }
     report();
     return true;
+}
+
+void SwitchChannelFsm::update_deadline(std::chrono::seconds duration)
+{
+    auto started_at        = m_now();
+    m_deadline             = started_at + duration;
+    auto wait              = std::make_shared<sSwitchChannelDurationTime>();
+    wait->ifname           = m_ifname;
+    wait->duration_sec     = duration;
+    wait->original_request = m_switch_channel_request;
+    wait->started_at       = started_at;
+    m_task_pool.send_event(eTaskEvent::SWITCH_CHANNEL_DURATION_TIME, wait);
 }
 
 bool SwitchChannelFsm::handle_cancelled(const void *args)

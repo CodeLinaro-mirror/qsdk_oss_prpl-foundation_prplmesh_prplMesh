@@ -111,13 +111,16 @@ protected:
         drain();
     }
 
-    void csa(uint8_t channel, eWiFiBandwidth bandwidth = BANDWIDTH_40, bool success = true)
+    void csa(uint8_t channel, eWiFiBandwidth bandwidth = BANDWIDTH_40, bool success = true,
+             const std::string &ifname = "wlan1")
     {
         auto msg                         = std::make_shared<sSwitchChannelNotification>();
-        msg->ifname                      = "wlan1";
+        msg->ifname                      = ifname;
         msg->ap_channel_switch.channel   = channel;
         msg->ap_channel_switch.bandwidth = bandwidth;
-        msg->switched                    = success;
+        msg->ap_channel_switch.vht_center_frequency =
+            son::wireless_utils::get_vht_central_frequency(channel, bandwidth, eFreqType::FREQ_5G);
+        msg->switched = success;
         switch_fsm->fire(sw::fsm_event::CSA, &msg);
         drain();
     }
@@ -223,6 +226,165 @@ TEST_F(CoordinatedCacLifecycle, OspDelayedStartAndCsaBeforeStart)
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
 }
 
+TEST_F(CoordinatedCacLifecycle, FreedomBackgroundCacWaitsForTargetChannelBeforeRestoring)
+{
+    request();
+    started();
+    tick(seconds(63));
+    completed(true, 64, "wlan1", BANDWIDTH_40);
+    EXPECT_TRUE(reports.empty());
+    EXPECT_EQ(requests.size(), 1U);
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_SWITCH_CHANNEL_NOTIFICATION);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_CHANNEL_REPORT);
+
+    // Freedom emits an aborted duplicate while the target CSA is still in progress.
+    completed(false, 64, "wlan1", BANDWIDTH_40);
+    csa(36);
+    csa(64, BANDWIDTH_20);
+    csa(64, BANDWIDTH_40, true, "wlan2");
+    EXPECT_TRUE(reports.empty());
+    EXPECT_EQ(requests.size(), 1U);
+
+    tick(seconds(1));
+    csa(64);
+    expect_restoring();
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports.front()->cac_completed_notification->cac_completed_params.success, 1);
+    ASSERT_NE(reports.front()->switch_channel_notification, nullptr);
+    EXPECT_EQ(reports.front()->switch_channel_notification->ap_channel_switch.channel, 64);
+    csa(64); // A duplicate target CSA cannot acknowledge the return request.
+    EXPECT_EQ(requests.size(), 2U);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_BACK_TO_ORIGINAL_CHANNEL_REPORT);
+    csa(36);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, BackgroundCacWithSwappedPrimaryWaitsForMatchingBlock)
+{
+    request();
+    started(60, 60, "wlan1", 1);
+    completed(true, 60, "wlan1", BANDWIDTH_40);
+    EXPECT_TRUE(reports.empty());
+    csa(60, BANDWIDTH_20);
+    csa(56);
+    auto wrong_center                         = std::make_shared<sSwitchChannelNotification>();
+    wrong_center->ifname                      = "wlan1";
+    wrong_center->switched                    = true;
+    wrong_center->ap_channel_switch.channel   = 60;
+    wrong_center->ap_channel_switch.bandwidth = BANDWIDTH_40;
+    wrong_center->ap_channel_switch.vht_center_frequency = 5290;
+    switch_fsm->fire(sw::fsm_event::CSA, &wrong_center);
+    drain();
+    EXPECT_TRUE(reports.empty());
+    EXPECT_EQ(requests.size(), 1U);
+    csa(60);
+    expect_restoring();
+    csa(40);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_BACK_TO_ORIGINAL_CHANNEL_REPORT);
+    csa(36);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
+TEST_F(CoordinatedCacLifecycle, TargetChannelAfterCacHasItsOwnBoundedDeadline)
+{
+    request();
+    started();
+    tick(seconds(71)); // CAC completion just before its deadline.
+    completed();
+    ASSERT_EQ(waits.size(), 2U);
+    EXPECT_EQ(waits.back()->original_request, requests.front());
+    EXPECT_EQ(waits.back()->started_at, now);
+    EXPECT_EQ(waits.back()->duration_sec, seconds(15));
+    tick(seconds(14)); // Both original CAC deadlines have expired by now.
+    EXPECT_TRUE(reports.empty());
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_CHANNEL_REPORT);
+
+    started(600); // Late starts and completions must not extend the CSA deadline.
+    completed();
+    completed(false);
+    EXPECT_EQ(waits.size(), 2U);
+    now += seconds(2);
+    switch_fsm->fire(sw::fsm_event::PERIODIC);
+    drain();
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports.front()->compute_switch_channel_report_status(),
+              eSwitchChannelReportStatus::NO_SWITCH_CHANNEL_NOTIFICATION);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::ERROR);
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::IDLE);
+    EXPECT_EQ(requests.size(), 1U);
+    tick(seconds(1));
+    request();
+    csa(64);
+    started();
+    completed();
+    ASSERT_EQ(requests.size(), 3U);
+    EXPECT_EQ(requests.back()->channel, 36);
+}
+
+TEST_F(CoordinatedCacLifecycle, TargetChannelFailureAfterCacDoesNotRestore)
+{
+    request();
+    started();
+    completed();
+    EXPECT_TRUE(reports.empty());
+    csa(64, BANDWIDTH_40, false);
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports.front()->compute_switch_channel_report_status(),
+              eSwitchChannelReportStatus::CSA_FAILED);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::ERROR);
+    EXPECT_EQ(requests.size(), 1U);
+}
+
+TEST_F(CoordinatedCacLifecycle, CancellationAfterCacCompletionReleasesPendingSwitch)
+{
+    request();
+    started();
+    completed();
+    terminate(true);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+    EXPECT_EQ(switch_fsm->state(), sw::fsm_state::IDLE);
+    EXPECT_TRUE(reports.empty());
+    request();
+    csa(64);
+    EXPECT_TRUE(reports.empty()); // The previous CAC completion was cleared.
+    started();
+    completed();
+    ASSERT_EQ(requests.size(), 3U);
+    EXPECT_EQ(requests.back()->channel, 36);
+}
+
+TEST_F(CoordinatedCacLifecycle, CoordinatorRequiresTargetChannelAsWellAsCacCompletion)
+{
+    request();
+    auto completion                          = std::make_shared<sCacCompletedNotification>();
+    completion->ifname                       = "wlan1";
+    completion->cac_completed_params.channel = 64;
+    completion->cac_completed_params.success = 1;
+    pool.send_event(eTaskEvent::SWITCH_CHANNEL_REPORT,
+                    std::make_shared<sSwitchChannelReport>(true, requests.front(), nullptr, nullptr,
+                                                           completion));
+    drain();
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::ERROR);
+    EXPECT_EQ(requests.size(), 1U);
+}
+
+TEST_F(CoordinatedCacLifecycle, ClearedTargetStillRequiresTheRequestedOperatingPrimary)
+{
+    {
+        auto db                                         = AgentDB::get();
+        db->radio("wlan1")->channels_list[60].dfs_state = beerocks_message::eDfsState::AVAILABLE;
+        db->radio("wlan1")->channels_list[64].dfs_state = beerocks_message::eDfsState::AVAILABLE;
+    }
+    request();
+    csa(60);
+    EXPECT_TRUE(reports.empty());
+    EXPECT_EQ(requests.size(), 1U);
+    csa(64);
+    expect_restoring();
+    csa(36);
+    EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
+}
+
 TEST_F(CoordinatedCacLifecycle, HostapdPrimarySecondarySwapRestoresLowBandChannel)
 {
     request();
@@ -267,6 +429,7 @@ TEST_F(CoordinatedCacLifecycle, HostapdPrimarySecondarySwapInReverseDirection)
     started(); // Primary 64, secondary offset -1 (encoded as uint8_t).
     EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
     completed(true, 64, "wlan1", BANDWIDTH_40);
+    csa(64);
     expect_restoring();
     csa(36);
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
@@ -276,6 +439,8 @@ TEST_F(CoordinatedCacLifecycle, SwappedCompletionCanRecoverMissingStart)
 {
     request();
     completed(true, 60, "wlan1", BANDWIDTH_40);
+    EXPECT_TRUE(reports.empty());
+    csa(60);
     expect_restoring();
 }
 
@@ -296,6 +461,7 @@ TEST_F(CoordinatedCacLifecycle, SwappedCacRequiresTheSameFrequencyBlock)
     started(60, 60, "wlan1", 1);
     EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
     completed(true, 60, "wlan1", BANDWIDTH_40);
+    csa(60);
     expect_restoring();
 }
 
@@ -313,6 +479,7 @@ TEST_F(CoordinatedCacLifecycle, SwappedCompletionRejectsInconsistentPrimaryFrequ
     drain();
     EXPECT_TRUE(reports.empty());
     completed(true, 60, "wlan1", BANDWIDTH_40);
+    csa(60);
     expect_restoring();
 }
 
@@ -333,6 +500,8 @@ TEST_F(CoordinatedCacLifecycle, RemainOnSwappedChannelFinishesAfterCacCompletion
     request(false);
     started(60, 60, "wlan1", 1);
     completed(true, 60, "wlan1", BANDWIDTH_40);
+    EXPECT_TRUE(reports.empty());
+    csa(60);
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::IDLE);
     EXPECT_EQ(requests.size(), 1U);
 }
@@ -368,6 +537,7 @@ TEST_F(CoordinatedCacLifecycle, CompletionDeadlineStartsAtCacStart)
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_CHANNEL_REPORT);
     EXPECT_TRUE(reports.empty());
     completed();
+    csa(64);
     expect_restoring();
 }
 
@@ -421,6 +591,7 @@ TEST_F(CoordinatedCacLifecycle, RejectsOtherRadioAndChannelEvents)
     completed(true, 100);
     EXPECT_TRUE(reports.empty());
     completed();
+    csa(64);
     expect_restoring();
 }
 
@@ -436,6 +607,7 @@ TEST_F(CoordinatedCacLifecycle, BusyRequestReportCannotFinishActiveRequest)
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_CHANNEL_REPORT);
     EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_CAC_COMPLETED);
     completed();
+    csa(64);
     ASSERT_EQ(requests.size(), 3U);
     EXPECT_EQ(reports.back()->original_request, requests.front());
     EXPECT_EQ(requests.back()->channel, 36);
@@ -446,6 +618,7 @@ TEST_F(CoordinatedCacLifecycle, OldReportAndDurationCannotAcknowledgeOrDelayRest
     request();
     started();
     completed();
+    csa(64);
     expect_restoring();
     pool.send_event(eTaskEvent::SWITCH_CHANNEL_REPORT,
                     std::make_shared<sSwitchChannelReport>(*reports.front()));
@@ -476,6 +649,7 @@ TEST_F(CoordinatedCacLifecycle, RestorationFailureDoesNotClaimSuccess)
     request();
     started();
     completed();
+    csa(64);
     csa(36, BANDWIDTH_40, false);
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::ERROR);
 }
@@ -594,6 +768,7 @@ TEST_F(CoordinatedCacLifecycle, OldCancellationCannotClearNewRequest)
     EXPECT_EQ(switch_fsm->state(), sw::fsm_state::WAIT_FOR_SWITCH_CHANNEL_NOTIFICATION);
     started();
     completed();
+    csa(64);
     EXPECT_EQ(requests.back()->channel, 36);
 }
 
@@ -606,6 +781,7 @@ TEST_F(CoordinatedCacLifecycle, LongCacDurationDoesNotOverflow)
     tick(seconds(65536));
     EXPECT_EQ(cac_fsm->state(), cac::fsm_state::WAIT_FOR_SWITCH_CHANNEL_REPORT);
     completed();
+    csa(64);
     expect_restoring();
 }
 
@@ -614,6 +790,7 @@ TEST_F(CoordinatedCacLifecycle, CoordinatorChecksRestorationPayloadAsWellAsReque
     request();
     started();
     completed();
+    csa(64);
     expect_restoring();
     auto wrong_channel                         = std::make_shared<sSwitchChannelNotification>();
     wrong_channel->ifname                      = "wlan1";
