@@ -235,8 +235,8 @@ TOOLCHAIN_PROFILES=(
 )
 CACHE_DIR="${rootdir}/build"
 PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-11-26
-PRPLOS_VERSION='bd26c17d5ea6d447a1a441a3a6311b7081675a05'
+# prplOS with the PPM-4368 CAC channel restoration fix
+PRPLOS_VERSION='4d4f53ca606bf774db45eb0c294d61abc000bc49'
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
