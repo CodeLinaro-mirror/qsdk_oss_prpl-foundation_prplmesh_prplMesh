@@ -208,6 +208,20 @@ void ChannelSelectionTask::handle_event(uint8_t event_enum_value, const void *ev
     }
 }
 
+void ChannelSelectionTask::handle_event(eTaskEvent event, std::shared_ptr<void> event_obj)
+{
+    if (event != eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST || !event_obj) {
+        return;
+    }
+    const auto &radio_mac = *std::static_pointer_cast<sMacAddr>(event_obj);
+    auto db               = AgentDB::get();
+    if (!db->get_radio_by_mac(radio_mac, AgentDB::eMacType::RADIO)) {
+        LOG(ERROR) << "Cannot request channel preference report for unknown radio " << radio_mac;
+        return;
+    }
+    request_channel_preference_refresh(radio_mac);
+}
+
 bool ChannelSelectionTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
                                        const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,
                                        std::shared_ptr<beerocks_header> beerocks_header)
@@ -1038,7 +1052,8 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
     const auto &sender_iface_name = radio->front.iface_name;
     LOG(TRACE) << "received ACTION_APMANAGER_CHANNELS_LIST_RESPONSE from " << sender_iface_name;
 
-    bool is_there_a_pending_preference = m_pending_preference.mid > 0;
+    // Unsolicited reports have MID zero, but still own a pending refresh for this radio.
+    bool is_there_a_pending_preference = m_pending_preference.preference_ready.count(radio_mac) > 0;
     if (m_zwdfs_state == eZwdfsState::WAIT_FOR_CHANNELS_LIST) {
         ZWDFS_FSM_MOVE_STATE(eZwdfsState::CHOOSE_NEXT_BEST_CHANNEL);
     } else if (is_there_a_pending_preference || m_send_preference_report_after_cac_started_event ||

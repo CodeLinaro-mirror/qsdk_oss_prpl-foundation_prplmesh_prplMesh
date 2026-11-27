@@ -39,7 +39,8 @@ enum class eTaskEvent {
     SWITCH_CHANNEL_REQUEST,            // 4
     SWITCH_CHANNEL_REPORT,             // 5
     // Drop tracking after the driver confirms cancellation; this does not command the driver.
-    SWITCH_CHANNEL_REQUEST_CANCELLED, // 6, payload: shared sSwitchChannelRequest
+    SWITCH_CHANNEL_REQUEST_CANCELLED,  // 6, payload: shared sSwitchChannelRequest
+    CHANNEL_PREFERENCE_REPORT_REQUEST, // 7, payload: shared radio UID (sMacAddr)
 };
 
 std::ostream &operator<<(std::ostream &o, const eTaskEvent &task_event);

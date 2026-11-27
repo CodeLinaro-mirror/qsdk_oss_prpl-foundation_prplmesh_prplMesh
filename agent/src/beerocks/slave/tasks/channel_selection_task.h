@@ -38,6 +38,11 @@ public:
     enum eEvent : uint8_t { AP_DISABLED, AP_ENABLED };
 
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
+    std::vector<eTaskEvent> get_task_event_list() const override
+    {
+        return {eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST};
+    }
+    void handle_event(eTaskEvent event, std::shared_ptr<void> event_obj) override;
 
     bool handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
                      const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,

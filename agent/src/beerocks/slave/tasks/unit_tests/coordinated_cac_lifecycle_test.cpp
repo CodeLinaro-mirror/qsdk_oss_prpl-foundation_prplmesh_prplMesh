@@ -63,6 +63,8 @@ protected:
             auto event = pool.pending.front();
             pool.pending.pop_front();
             switch (event.first) {
+            case eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST:
+                break;
             case eTaskEvent::SWITCH_CHANNEL_REQUEST_CANCELLED: {
                 auto request = std::static_pointer_cast<const sSwitchChannelRequest>(event.second);
                 switch_fsm->fire(sw::fsm_event::CANCELLED, &request);

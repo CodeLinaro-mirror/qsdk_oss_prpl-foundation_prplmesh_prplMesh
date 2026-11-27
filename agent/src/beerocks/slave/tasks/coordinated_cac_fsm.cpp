@@ -450,21 +450,19 @@ void CacFsm::config_fsm()
 
 bool CacFsm::send_preference_report()
 {
-    LOG(DEBUG) << "sending preference report";
-
-    // we are triggering preference report by sending
-    // channel list request. The end of this request
-    // is a preference report being sent to the controller.
-    // collecting the cac values is done from the database
-    auto request =
-        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_CHANNELS_LIST_REQUEST>(
-            m_cmdu_tx);
-    if (!request) {
-        LOG(ERROR) << "Failed to build message";
+    auto db    = AgentDB::get();
+    auto radio = db->radio(m_ifname);
+    if (!radio) {
+        LOG(ERROR) << "Cannot request channel preference report for interface " << m_ifname;
         return false;
     }
 
-    return m_send_cmdu(m_ifname, m_cmdu_tx);
+    // A channels-list response alone does not trigger a preference report, notably
+    // when CAC was already cleared and no CAC notifications occurred.
+    LOG(DEBUG) << "Requesting channel preference report for " << m_ifname;
+    m_task_pool.send_event(eTaskEvent::CHANNEL_PREFERENCE_REPORT_REQUEST,
+                           std::make_shared<sMacAddr>(radio->front.iface_mac));
+    return true;
 }
 
 std::shared_ptr<sSwitchChannelRequest>
