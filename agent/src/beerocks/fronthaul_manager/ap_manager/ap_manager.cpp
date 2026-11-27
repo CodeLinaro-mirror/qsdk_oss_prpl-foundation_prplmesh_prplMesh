@@ -1533,21 +1533,22 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
         bool cancel_cac_success = false;
 
-        if (!ap_wlan_hal->cancel_cac(request->cs_params().channel,
-                                     (beerocks::eWiFiBandwidth)request->cs_params().bandwidth,
-                                     request->cs_params().vht_center_frequency,
-                                     request->cs_params().channel_ext_above_primary)) {
+        const bool cancel_cac_accepted = ap_wlan_hal->cancel_cac(
+            request->cs_params().channel, (beerocks::eWiFiBandwidth)request->cs_params().bandwidth,
+            request->cs_params().vht_center_frequency,
+            request->cs_params().channel_ext_above_primary);
+        if (!cancel_cac_accepted) {
             LOG(ERROR) << "Cancel cac failed!";
         }
 
         // In order to make sure cac was actually canceled and radio is operational again
-        // we need to poll until radio state is ENABLED or DFS (in case radio is
-        // enabled back on DFS channel) or timeout.
+        // we need to poll until the requested return channel is selected and radio state
+        // is ENABLED or DFS (in case radio is enabled back on DFS channel) or timeout.
         // NOTE: bwl implementations default radio_state == UNKNOWN so consider them
         // also as ENABLED.
         auto timeout =
             std::chrono::steady_clock::now() + std::chrono::seconds(MAX_CANCEL_CAC_TIMEOUT_SEC);
-        while (cancel_cac_success && std::chrono::steady_clock::now() < timeout) {
+        while (cancel_cac_accepted && std::chrono::steady_clock::now() < timeout) {
             if (!ap_wlan_hal->refresh_radio_info()) {
                 LOG(WARNING) << "Radio could be temporary disabled, wait grace time "
                              << std::chrono::duration_cast<std::chrono::seconds>(
@@ -1558,18 +1559,27 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 continue;
             }
 
-            if (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::ENABLED ||
-                (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::DFS) ||
-                (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::UNKNOWN)) {
+            const auto &radio      = ap_wlan_hal->get_radio_info();
+            const bool radio_ready = radio.radio_state == bwl::eRadioState::ENABLED ||
+                                     radio.radio_state == bwl::eRadioState::DFS ||
+                                     radio.radio_state == bwl::eRadioState::UNKNOWN;
+            if (radio_ready && radio.channel == request->cs_params().channel) {
                 cancel_cac_success = true;
+                break;
             } else {
-                LOG(WARNING) << "radio state is still not enabled, waiting for more "
+                LOG(WARNING) << "Waiting for CAC cancellation: radio state " << radio.radio_state
+                             << ", channel " << radio.channel << ", requested channel "
+                             << int(request->cs_params().channel) << ", waiting for more "
                              << std::chrono::duration_cast<std::chrono::seconds>(
                                     timeout - std::chrono::steady_clock::now())
                                     .count()
                              << " seconds.";
                 UTILS_SLEEP_MSEC(500);
             }
+        }
+
+        if (cancel_cac_accepted && !cancel_cac_success) {
+            LOG(ERROR) << "Timed out waiting for radio to return after CAC cancellation";
         }
 
         // send the result
